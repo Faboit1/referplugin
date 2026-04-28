@@ -214,7 +214,8 @@ public class LoginListener implements Listener {
 
         for (Object raw : milestones) {
             if (!(raw instanceof java.util.Map<?,?> m)) continue;
-            int target = Integer.parseInt(String.valueOf(m.getOrDefault("referrals", -1)));
+            Object _targetRaw = m.get("referrals");
+            int target = _targetRaw != null ? Integer.parseInt(String.valueOf(_targetRaw)) : -1;
             if (target != successful) continue;
 
             // Give milestone rewards
@@ -222,8 +223,10 @@ public class LoginListener implements Listener {
             double moneyGiven = 0;
             int xpGiven = 0;
             if (rewardsRaw instanceof java.util.Map<?,?> rm) {
-                moneyGiven = Double.parseDouble(String.valueOf(rm.getOrDefault("money", 0)));
-                xpGiven = Integer.parseInt(String.valueOf(rm.getOrDefault("xp", 0)));
+                Object _moneyRaw = rm.get("money");
+                Object _xpRaw    = rm.get("xp");
+                moneyGiven = _moneyRaw != null ? Double.parseDouble(String.valueOf(_moneyRaw)) : 0;
+                xpGiven    = _xpRaw    != null ? Integer.parseInt(String.valueOf(_xpRaw))      : 0;
                 if (moneyGiven > 0 && plugin.getEconomy() != null) {
                     plugin.getEconomy().depositPlayer(referrer, moneyGiven);
                 }
