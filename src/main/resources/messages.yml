@@ -1,0 +1,41 @@
+# ==============================
+# ReferPlugin - Messages
+# ==============================
+# Supports & colour codes and PlaceholderAPI placeholders
+
+no-permission: "&cYou don't have permission to do that."
+player-only: "&cThis command can only be used by players."
+unknown-command: "&cUnknown sub-command. Use &e/referral help &cfor help."
+plugin-reloaded: "&aPlugin reloaded successfully."
+player-not-found: "&cPlayer '&e%player%&c' not found."
+
+referral:
+  success-referrer: "&aYou received a referral reward! &e%joiner% &ajoined using your link."
+  success-joiner: "&aWelcome! You joined via &e%referrer%'s &areferral link and received a reward."
+  blocked-self: "&cYou cannot refer yourself."
+  blocked-same-ip: "&cReferral blocked: same network detected."
+  blocked-cooldown: "&cThis referral is on cooldown. Please wait before trying again."
+  blocked-daily-cap: "&cYou have reached your daily referral limit."
+  blocked-weekly-cap: "&cYou have reached your weekly referral limit."
+  blocked-already-referred: "&cThis player has already been referred."
+  no-host: "&7No referral link detected for your connection."
+  invalid-referrer: "&cReferral link invalid: &e%host% &cdoes not match any player."
+
+stats:
+  header: "&8&m----&r &6&lReferral Stats &8&m----"
+  total: "&7Total Referrals: &e%referral_count%"
+  successful: "&7Successful: &a%successful%"
+  blocked: "&7Blocked: &c%blocked%"
+  rewards: "&7Total Rewards: &6%referral_total_rewards%"
+  footer: "&8&m--------------------"
+
+help:
+  header: "&8&m----&r &6&lReferral Commands &8&m----"
+  use: "&e/referral stats &7— View your referral stats"
+  gui: "&e/referral gui &7— Open the referral GUI"
+  info: "&e/referral info [player] &7— View referral info"
+  reload: "&e/referral reload &7— Reload the plugin (admin)"
+  footer: "&8&m--------------------"
+
+milestone:
+  reached: "&6&lMilestone! &eYou have reached &6%referrals% referrals!"

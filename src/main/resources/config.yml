@@ -1,0 +1,115 @@
+# ==============================
+# ReferPlugin - Main Configuration
+# ==============================
+
+# Database settings
+database:
+  type: SQLITE   # SQLITE or MYSQL
+  mysql:
+    host: localhost
+    port: 3306
+    database: referplugin
+    username: root
+    password: password
+    pool-size: 10
+    connection-timeout: 30000
+
+# Redis (optional – used for cross-server IP caching with Velocity/BungeeCord)
+redis:
+  enabled: false
+  host: localhost
+  port: 6379
+  password: ""
+  database: 0
+
+# Hostname / subdomain parsing
+hostname:
+  # Base domain to strip when parsing subdomains
+  base-domain: "cheesesmp.top"
+  # Optional manual overrides: <subdomain>: <minecraft_username>
+  manual-overrides: {}
+  #  mylink: faboit
+
+# Anti-abuse settings
+anti-abuse:
+  # strict = block completely | relaxed = apply reduced rewards
+  enforcement: strict
+  same-ip-block: true
+  self-referral-block: true
+  # Hours between valid referral windows per referrer
+  cooldown-hours: 24
+  # Max successful referrals per day / week (0 = unlimited)
+  daily-cap: 10
+  weekly-cap: 50
+  # Multiplier applied for relaxed enforcement (0.5 = 50% of normal rewards)
+  relaxed-reward-multiplier: 0.5
+
+# Default reward profiles
+reward-profiles:
+  default_referrer:
+    money: 500.0
+    xp: 100
+    commands: []
+    items: []
+    chance-rewards: []
+
+  default_joiner:
+    money: 250.0
+    xp: 50
+    commands: []
+    items: []
+    chance-rewards: []
+
+# Per-player custom profiles (key = exact Minecraft username, case-insensitive)
+custom-referrer-profiles:
+  faboit:
+    money: 1000.0
+    xp: 200
+    commands:
+      - "crate give %referrer% epic 1"
+    items: []
+    chance-rewards: []
+
+custom-joiner-profiles: {}
+
+# Permission-based reward modifiers
+# Each node specifies multipliers applied on top of base profile rewards
+permission-modifiers:
+  "referral.boost.1":
+    money-multiplier: 1.5
+    xp-multiplier: 1.5
+    stack: true        # Whether this modifier stacks with other modifiers
+  "referral.boost.2":
+    money-multiplier: 2.0
+    xp-multiplier: 2.0
+    stack: true
+
+# Milestones: rewards given when referrer reaches N total successful referrals
+milestones:
+  - referrals: 5
+    rewards:
+      money: 1000.0
+      commands:
+        - "broadcast &6%referrer% &ehas reached &65 referrals!"
+  - referrals: 10
+    rewards:
+      money: 2500.0
+      commands:
+        - "broadcast &6%referrer% &ehas reached &610 referrals!"
+  - referrals: 25
+    rewards:
+      money: 5000.0
+      commands:
+        - "broadcast &6%referrer% &ehas reached &625 referrals!"
+
+# GUI settings
+gui:
+  player:
+    title: "&6&lYour Referrals"
+    rows: 6
+  admin:
+    title: "&c&lAdmin Panel"
+    rows: 6
+
+# Prefix for all plugin messages (use '' to disable)
+message-prefix: "&8[&6Refer&8] &r"

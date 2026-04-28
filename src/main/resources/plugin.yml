@@ -1,0 +1,46 @@
+name: ReferPlugin
+version: '${project.version}'
+main: com.faboit.referplugin.ReferPlugin
+api-version: '1.20'
+description: Production-ready Minecraft referral plugin
+author: Faboit
+website: https://github.com/Faboit1/referplugin
+
+softdepend:
+  - Vault
+  - PlaceholderAPI
+  - LuckPerms
+
+commands:
+  referral:
+    description: Main referral command
+    usage: /referral [stats|gui|reload|info] [player]
+    aliases:
+      - refer
+      - ref
+
+permissions:
+  referplugin.use:
+    description: Allows players to use /referral
+    default: true
+  referplugin.gui:
+    description: Allows players to open the referral GUI
+    default: true
+  referplugin.admin:
+    description: Allows access to admin features
+    default: op
+  referplugin.reload:
+    description: Allows reloading the plugin
+    default: op
+  referplugin.bypass.cooldown:
+    description: Bypass referral cooldowns
+    default: op
+  referplugin.bypass.cap:
+    description: Bypass daily/weekly referral caps
+    default: op
+  referral.boost.1:
+    description: +50% reward boost on referrals
+    default: false
+  referral.boost.2:
+    description: +100% reward boost on referrals
+    default: false
