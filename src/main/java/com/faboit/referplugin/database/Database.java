@@ -52,6 +52,18 @@ public interface Database {
 
     int countSuccessfulReferralsThisWeek(UUID referrerUuid);
 
+    /**
+     * Delete all referral records whose {@code joiner_ip} exactly matches the given IP,
+     * returning the deleted records so the caller can adjust referrer statistics.
+     */
+    List<ReferralRecord> deleteAndReturnRecordsByJoinerIp(String ip);
+
+    /**
+     * Decrement a referrer's successful-referral and total-referral counters by {@code count},
+     * clamping at zero. Used to undo incorrectly-counted referrals after record deletion.
+     */
+    void decrementSuccessfulReferrals(UUID referrerUuid, int count);
+
     // --- IP tracking ---
 
     void logIp(UUID uuid, String ip, long timestamp);

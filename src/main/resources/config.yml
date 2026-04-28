@@ -136,6 +136,21 @@ hostname:
   #  mylink:  faboit
   #  support: AdminPlayerName
 
+  # Subdomains to silently block — joins from these are treated as direct joins
+  # (no referral recorded, no rewards given).
+  # Supports * (any characters) and ? (single character) wildcards.
+  # Case-insensitive.  Examples:
+  #   play      — block exactly the "play" subdomain
+  #   play*     — block any subdomain starting with "play" (play, playground, …)
+  #   mc*       — block mc, mc2, …
+  # When a player joins via a blocked subdomain, ALL existing referral records
+  # that share the same IP address are also deleted and the affected referrers'
+  # stats are corrected.
+  blocked-subdomains: []
+  #  - play
+  #  - mc
+  #  - java*
+
   # Allow referrers whose account cannot be found online (e.g. offline-mode servers).
   # When false, the referral is silently ignored if the referrer is not currently online.
   allow-offline-referrers: true
