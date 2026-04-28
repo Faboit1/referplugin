@@ -153,9 +153,24 @@
         </plugins>
 
         <resources>
+            <!-- Only plugin.yml needs filtering to inject ${project.version} -->
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+                <includes>
+                    <include>plugin.yml</include>
+                </includes>
+            </resource>
+            <!-- All other resources (messages.yml, config.yml, etc.) must NOT be
+                 filtered: Maven would HTML-encode & → &amp; and < → &lt;, which
+                 breaks SnakeYAML parsing of Minecraft colour codes (&e, &8, …)
+                 and angle-bracket placeholders (<player>, etc.). -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>plugin.yml</exclude>
+                </excludes>
             </resource>
         </resources>
     </build>
