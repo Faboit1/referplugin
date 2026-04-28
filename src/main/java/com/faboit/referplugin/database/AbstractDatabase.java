@@ -352,6 +352,54 @@ public abstract class AbstractDatabase implements Database {
         return countQuery(sql, referrerUuid.toString(), weekStart);
     }
 
+    @Override
+    public List<ReferralRecord> deleteAndReturnRecordsByJoinerIp(String ip) {
+        List<ReferralRecord> deleted = new ArrayList<>();
+        if (ip == null || ip.isBlank()) return deleted;
+
+        String selectSql = "SELECT * FROM referral_records WHERE joiner_ip = ?";
+        String deleteSql = "DELETE FROM referral_records WHERE joiner_ip = ?";
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement sel = c.prepareStatement(selectSql);
+                 PreparedStatement del = c.prepareStatement(deleteSql)) {
+                sel.setString(1, ip);
+                try (ResultSet rs = sel.executeQuery()) {
+                    while (rs.next()) deleted.add(mapRecord(rs));
+                }
+                del.setString(1, ip);
+                del.executeUpdate();
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            log.severe("Error deleting referral records by joiner IP: " + e.getMessage());
+        }
+        return deleted;
+    }
+
+    @Override
+    public void decrementSuccessfulReferrals(UUID referrerUuid, int count) {
+        if (count <= 0) return;
+        String sql = """
+            UPDATE referral_players
+            SET successful_referrals = MAX(0, successful_referrals - ?),
+                total_referrals      = MAX(0, total_referrals - ?)
+            WHERE uuid = ?
+            """;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, count);
+            ps.setInt(2, count);
+            ps.setString(3, referrerUuid.toString());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            log.severe("Error decrementing successful referrals: " + e.getMessage());
+        }
+    }
+
     // ── IP tracking ─────────────────────────────────────────────────────────
 
     @Override

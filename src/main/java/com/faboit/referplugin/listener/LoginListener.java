@@ -22,7 +22,9 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -58,7 +60,7 @@ public class LoginListener implements Listener {
      */
     private final ConcurrentHashMap<UUID, PendingLogin> pendingLogins = new ConcurrentHashMap<>();
 
-    private record PendingLogin(String hostname, String fallbackIp, String rawHost) {}
+    private record PendingLogin(String hostname, String fallbackIp, String rawHost, boolean blockedSubdomain) {}
 
     public LoginListener(ReferPlugin plugin) {
         this.plugin = plugin;
@@ -73,15 +75,21 @@ public class LoginListener implements Listener {
 
         Player joiner   = event.getPlayer();
         String rawHost  = event.getHostname();
-        String hostname = plugin.getHostnameParser().parse(rawHost);
+        var    parsed   = plugin.getHostnameParser().parseResult(rawHost);
 
-        if (hostname == null || hostname.isBlank()) return; // No referral subdomain
-
-        InetAddress addr     = event.getAddress();
+        InetAddress addr       = event.getAddress();
         String      fallbackIp = addr != null
                 ? AbuseDetector.sanitiseIp(addr.getHostAddress()) : null;
 
-        pendingLogins.put(joiner.getUniqueId(), new PendingLogin(hostname, fallbackIp, rawHost));
+        if (parsed.referrerName() != null && !parsed.referrerName().isBlank()) {
+            // Normal referral subdomain detected
+            pendingLogins.put(joiner.getUniqueId(),
+                    new PendingLogin(parsed.referrerName(), fallbackIp, rawHost, false));
+        } else if (parsed.blocked()) {
+            // Blocked subdomain — store for cleanup but not for referral processing
+            pendingLogins.put(joiner.getUniqueId(),
+                    new PendingLogin(null, fallbackIp, rawHost, true));
+        }
     }
 
     // ── Step 2: clean up on disconnect ───────────────────────────────────────
@@ -117,11 +125,18 @@ public class LoginListener implements Listener {
 
             // Prefer real data from Velocity; fall back to event-time data
             VelocityData vd = plugin.getVelocityBridge().getAndRemove(uuid);
+            String joinerIp = (vd != null && vd.getRealIp() != null && !vd.getRealIp().isBlank())
+                    ? vd.getRealIp() : pending.fallbackIp();
+
+            // Blocked-subdomain path: clean up any previous referral records sharing this IP
+            if (pending.blockedSubdomain()) {
+                cleanupBlockedJoinerRecords(joinerIp);
+                return;
+            }
+
             String referrerName = (vd != null && vd.getHostname() != null && !vd.getHostname().isBlank())
                     ? plugin.getHostnameParser().parse(vd.getHostname())
                     : pending.hostname();
-            String joinerIp = (vd != null && vd.getRealIp() != null && !vd.getRealIp().isBlank())
-                    ? vd.getRealIp() : pending.fallbackIp();
             // Use Velocity's virtual host for logging; fall back to the raw host from PlayerLoginEvent
             String rawHost = (vd != null && vd.getHostname() != null && !vd.getHostname().isBlank())
                     ? vd.getHostname() : pending.rawHost();
@@ -316,6 +331,41 @@ public class LoginListener implements Listener {
             }
             break;
         }
+    }
+
+    // ── Blocked-subdomain cleanup ─────────────────────────────────────────────
+
+    /**
+     * Deletes all referral records whose {@code joiner_ip} matches the given IP and
+     * rolls back the affected referrers' successful-referral counters.
+     *
+     * <p>This is called when a player joins via a blocked subdomain hostname (e.g.
+     * {@code play.*}). Any records previously created from the same IP — whether for
+     * this player or alts on the same machine — are treated as never having happened.
+     */
+    private void cleanupBlockedJoinerRecords(String joinerIp) {
+        if (joinerIp == null || joinerIp.isBlank()) return;
+
+        Database database = plugin.getDb();
+        List<ReferralRecord> deleted = database.deleteAndReturnRecordsByJoinerIp(joinerIp);
+
+        if (deleted.isEmpty()) return;
+
+        // Group successful records by referrer and decrement each referrer's stats once
+        Map<UUID, Integer> decrementCounts = new HashMap<>();
+        for (ReferralRecord record : deleted) {
+            if (record.getStatus() == ReferralRecord.Status.SUCCESS
+                    || record.getStatus() == ReferralRecord.Status.RELAXED_IP) {
+                decrementCounts.merge(record.getReferrerUuid(), 1, Integer::sum);
+            }
+        }
+        for (Map.Entry<UUID, Integer> entry : decrementCounts.entrySet()) {
+            database.decrementSuccessfulReferrals(entry.getKey(), entry.getValue());
+        }
+
+        log.info(String.format(
+                "[BlockedSubdomain] Cleaned up %d referral record(s) for joiner IP %s.",
+                deleted.size(), joinerIp));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
