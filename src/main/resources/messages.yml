@@ -42,6 +42,7 @@ referral:
   invalid-referrer: "&cReferral link invalid — '&e%host%&c' does not match any player."
   offline-referrer: "&7Referral logged, but &e%referrer% &7is offline and will receive their reward later."
   reward-pending: "&7Your reward will be delivered when &e%referrer% &7next logs in."
+  pending-delivered: "&a✔ You have &e%count% &apending referral reward(s) that have been delivered!"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STATS COMMAND  (/referral stats)

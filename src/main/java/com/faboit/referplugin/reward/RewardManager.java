@@ -69,6 +69,50 @@ public class RewardManager {
     }
 
     /**
+     * Apply a referrer reward by profile config path and multiplier.
+     * Used for delivering pending rewards to referrers who were offline.
+     *
+     * @param referrer    The player receiving the reward.
+     * @param joinerName  The joiner's name (for placeholder replacement).
+     * @param profilePath Config path of the reward profile.
+     * @param multiplier  Reward multiplier to apply on top of any permission modifier.
+     */
+    public void applyReferrerRewardFromPath(Player referrer, String joinerName,
+                                             String profilePath, double multiplier) {
+        RewardProfile profile          = loadProfile(profilePath, profilePath);
+        double        effectiveMulti   = multiplier * getPermissionMultiplier(referrer);
+
+        if (profile.getMoney() > 0) {
+            new MoneyReward(economy, profile.getMoney(), log).apply(referrer, effectiveMulti);
+        }
+        if (profile.getXp() > 0) {
+            new XPReward(profile.getXp()).apply(referrer, effectiveMulti);
+        }
+        // Commands — %referrer% = referrer's name, %joiner% = joiner's name
+        for (String cmd : profile.getCommands()) {
+            String resolved = cmd
+                    .replace("%referrer%", referrer.getName())
+                    .replace("%joiner%",   joinerName);
+            new CommandReward(plugin, resolved).apply(referrer, effectiveMulti);
+        }
+        // Chance rewards
+        for (RewardProfile.ChanceRewardEntry entry : profile.getChanceRewards()) {
+            List<Reward> inner = new ArrayList<>();
+            if (entry.getMoney() > 0)
+                inner.add(new MoneyReward(economy, entry.getMoney(), log));
+            if (entry.getXp() > 0)
+                inner.add(new XPReward(entry.getXp()));
+            for (String cmd : entry.getCommands()) {
+                String resolved = cmd
+                        .replace("%referrer%", referrer.getName())
+                        .replace("%joiner%",   joinerName);
+                inner.add(new CommandReward(plugin, resolved));
+            }
+            new ChanceReward(entry.getChance(), inner).apply(referrer, effectiveMulti);
+        }
+    }
+
+    /**
      * Resolve a referrer's reward profile without applying it (used for preview).
      */
     public RewardProfile resolveReferrerProfile(Player referrer) {

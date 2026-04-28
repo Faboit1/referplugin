@@ -11,6 +11,7 @@ import com.faboit.referplugin.hostname.HostnameParser;
 import com.faboit.referplugin.listener.LoginListener;
 import com.faboit.referplugin.placeholder.ReferralExpansion;
 import com.faboit.referplugin.reward.RewardManager;
+import com.faboit.referplugin.velocity.VelocityBridge;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -38,6 +39,7 @@ public class ReferPlugin extends JavaPlugin {
     private PlayerGUI       playerGUI;
     private AdminGUI        adminGUI;
     private Economy         economy;
+    private VelocityBridge  velocityBridge;
 
     @Override
     public void onEnable() {
@@ -72,13 +74,27 @@ public class ReferPlugin extends JavaPlugin {
         // ── 4. Core components ───────────────────────────────────────────────
         reloadComponents();
 
-        // ── 5. PlaceholderAPI expansion ──────────────────────────────────────
+        // ── 5. Velocity bridge (plugin messaging) ────────────────────────────
+        velocityBridge = new VelocityBridge();
+        getServer().getMessenger().registerIncomingPluginChannel(
+                this, VelocityBridge.CHANNEL, velocityBridge);
+        getServer().getMessenger().registerOutgoingPluginChannel(
+                this, VelocityBridge.CHANNEL);
+        getLogger().info("Velocity bridge registered on channel: " + VelocityBridge.CHANNEL);
+
+        // ── 6. Listeners (registered once – NOT inside reloadComponents) ─────
+        LoginListener loginListener = new LoginListener(this);
+        Bukkit.getPluginManager().registerEvents(loginListener, this);
+        Bukkit.getPluginManager().registerEvents(playerGUI, this);
+        Bukkit.getPluginManager().registerEvents(adminGUI, this);
+
+        // ── 7. PlaceholderAPI expansion ──────────────────────────────────────
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             new ReferralExpansion(this).register();
             getLogger().info("PlaceholderAPI expansion registered.");
         }
 
-        // ── 6. Commands ──────────────────────────────────────────────────────
+        // ── 8. Commands ──────────────────────────────────────────────────────
         ReferralCommand cmd = new ReferralCommand(this);
         var cmdObj = getCommand("referral");
         if (cmdObj != null) {
@@ -94,12 +110,15 @@ public class ReferPlugin extends JavaPlugin {
         if (databaseManager != null) {
             databaseManager.close();
         }
+        getServer().getMessenger().unregisterIncomingPluginChannel(this);
+        getServer().getMessenger().unregisterOutgoingPluginChannel(this);
         getLogger().info("ReferPlugin disabled.");
     }
 
     /**
      * Rebuilds all stateless components from the current config.
      * Called on enable and on /referral reload.
+     * Does NOT re-register event listeners (they are registered once at enable time).
      */
     public void reloadComponents() {
         hostnameParser = new HostnameParser(configManager.getConfig());
@@ -109,22 +128,17 @@ public class ReferPlugin extends JavaPlugin {
 
         playerGUI = new PlayerGUI(this);
         adminGUI  = new AdminGUI(this);
-
-        // Re-register listeners (safe to register multiple times on reload
-        // because Paper deduplicates by plugin instance in HandlerList)
-        Bukkit.getPluginManager().registerEvents(new LoginListener(this), this);
-        Bukkit.getPluginManager().registerEvents(playerGUI, this);
-        Bukkit.getPluginManager().registerEvents(adminGUI, this);
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────
 
     public ConfigManager   getConfigManager()  { return configManager; }
-    public Database        getDb()             { return databaseManager.getDatabase(); }
+    public Database        getDb()             { return databaseManager != null ? databaseManager.getDatabase() : null; }
     public HostnameParser  getHostnameParser() { return hostnameParser; }
     public AbuseDetector   getAbuseDetector()  { return abuseDetector; }
     public RewardManager   getRewardManager()  { return rewardManager; }
     public PlayerGUI       getPlayerGUI()      { return playerGUI; }
     public AdminGUI        getAdminGUI()       { return adminGUI; }
     public Economy         getEconomy()        { return economy; }
+    public VelocityBridge  getVelocityBridge() { return velocityBridge; }
 }

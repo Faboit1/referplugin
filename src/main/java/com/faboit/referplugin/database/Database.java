@@ -1,5 +1,6 @@
 package com.faboit.referplugin.database;
 
+import com.faboit.referplugin.model.PendingReward;
 import com.faboit.referplugin.model.PlayerStats;
 import com.faboit.referplugin.model.ReferralRecord;
 
@@ -58,4 +59,21 @@ public interface Database {
     boolean ipUsedByOtherPlayer(String ip, UUID excludeUuid);
 
     List<String> getRecentIps(UUID uuid, int limit);
+
+    // --- Offline player lookup ---
+
+    /**
+     * Returns the UUID stored in the database for the given username,
+     * or {@code null} if the player has never been seen.
+     */
+    UUID getPlayerUuid(String username);
+
+    // --- Pending rewards (for offline referrers) ---
+
+    void addPendingReward(UUID playerUuid, String joinerName,
+                          String profilePath, double multiplier, long createdAt);
+
+    List<PendingReward> getPendingRewards(UUID playerUuid);
+
+    void removePendingReward(long id);
 }

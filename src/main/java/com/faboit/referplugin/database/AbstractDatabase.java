@@ -1,5 +1,6 @@
 package com.faboit.referplugin.database;
 
+import com.faboit.referplugin.model.PendingReward;
 import com.faboit.referplugin.model.PlayerStats;
 import com.faboit.referplugin.model.ReferralRecord;
 import com.zaxxer.hikari.HikariDataSource;
@@ -71,11 +72,23 @@ public abstract class AbstractDatabase implements Database {
                 )
             """.formatted(autoIncrementKeyword()));
 
+            s.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS referral_pending_rewards (
+                    id           INTEGER PRIMARY KEY %s,
+                    player_uuid  VARCHAR(36)  NOT NULL,
+                    joiner_name  VARCHAR(16)  NOT NULL,
+                    profile_path VARCHAR(128) NOT NULL,
+                    multiplier   DOUBLE       NOT NULL DEFAULT 1.0,
+                    created_at   BIGINT       NOT NULL
+                )
+            """.formatted(autoIncrementKeyword()));
+
             // Indices for performance
             safeExecute(s, "CREATE INDEX IF NOT EXISTS idx_records_referrer ON referral_records(referrer_uuid)");
             safeExecute(s, "CREATE INDEX IF NOT EXISTS idx_records_joiner   ON referral_records(joiner_uuid)");
             safeExecute(s, "CREATE INDEX IF NOT EXISTS idx_ip_uuid          ON referral_ip_log(uuid)");
             safeExecute(s, "CREATE INDEX IF NOT EXISTS idx_ip_ip            ON referral_ip_log(ip)");
+            safeExecute(s, "CREATE INDEX IF NOT EXISTS idx_pending_uuid     ON referral_pending_rewards(player_uuid)");
         }
     }
 
@@ -305,7 +318,8 @@ public abstract class AbstractDatabase implements Database {
 
     @Override
     public boolean hasBeenReferred(UUID joinerUuid) {
-        String sql = "SELECT 1 FROM referral_records WHERE joiner_uuid = ? AND status = 'SUCCESS' LIMIT 1";
+        // Both SUCCESS and RELAXED_IP count as "already referred" – prevent being referred twice
+        String sql = "SELECT 1 FROM referral_records WHERE joiner_uuid = ? AND status IN ('SUCCESS', 'RELAXED_IP') LIMIT 1";
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, joinerUuid.toString());
@@ -385,6 +399,83 @@ public abstract class AbstractDatabase implements Database {
             log.severe("Error fetching recent IPs: " + e.getMessage());
         }
         return ips;
+    }
+
+    // ── Offline player lookup ────────────────────────────────────────────────
+
+    @Override
+    public UUID getPlayerUuid(String username) {
+        String sql = "SELECT uuid FROM referral_players WHERE username = ? LIMIT 1";
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return UUID.fromString(rs.getString("uuid"));
+            }
+        } catch (SQLException e) {
+            log.severe("Error looking up player UUID by name: " + e.getMessage());
+        }
+        return null;
+    }
+
+    // ── Pending rewards ──────────────────────────────────────────────────────
+
+    @Override
+    public void addPendingReward(UUID playerUuid, String joinerName,
+                                  String profilePath, double multiplier, long createdAt) {
+        String sql = """
+            INSERT INTO referral_pending_rewards
+              (player_uuid, joiner_name, profile_path, multiplier, created_at)
+            VALUES (?,?,?,?,?)
+            """;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, playerUuid.toString());
+            ps.setString(2, joinerName);
+            ps.setString(3, profilePath);
+            ps.setDouble(4, multiplier);
+            ps.setLong(5, createdAt);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            log.severe("Error adding pending reward: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public List<PendingReward> getPendingRewards(UUID playerUuid) {
+        List<PendingReward> list = new ArrayList<>();
+        String sql = "SELECT * FROM referral_pending_rewards WHERE player_uuid = ? ORDER BY created_at ASC";
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, playerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new PendingReward(
+                            rs.getLong("id"),
+                            UUID.fromString(rs.getString("player_uuid")),
+                            rs.getString("joiner_name"),
+                            rs.getString("profile_path"),
+                            rs.getDouble("multiplier"),
+                            rs.getLong("created_at")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            log.severe("Error fetching pending rewards: " + e.getMessage());
+        }
+        return list;
+    }
+
+    @Override
+    public void removePendingReward(long id) {
+        String sql = "DELETE FROM referral_pending_rewards WHERE id = ?";
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            log.severe("Error removing pending reward: " + e.getMessage());
+        }
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

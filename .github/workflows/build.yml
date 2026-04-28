@@ -24,12 +24,23 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build with Maven
+      - name: Build Paper plugin
         run: mvn --batch-mode --no-transfer-progress clean package -DskipTests
 
-      - name: Upload JAR artifact
+      - name: Build Velocity companion plugin
+        working-directory: velocity-plugin
+        run: mvn --batch-mode --no-transfer-progress clean package -DskipTests
+
+      - name: Upload Paper JAR
         uses: actions/upload-artifact@v4
         with:
           name: ReferPlugin-${{ github.sha }}
           path: target/referplugin-*.jar
+          if-no-files-found: error
+
+      - name: Upload Velocity JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReferVelocity-${{ github.sha }}
+          path: velocity-plugin/target/refervelocity-*.jar
           if-no-files-found: error
