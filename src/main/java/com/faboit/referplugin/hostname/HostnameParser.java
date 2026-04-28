@@ -31,7 +31,7 @@ public class HostnameParser {
      */
     public record ParseResult(String referrerName, boolean blocked) {
         public static ParseResult noMatch()            { return new ParseResult(null, false); }
-        public static ParseResult blocked()            { return new ParseResult(null, true);  }
+        public static ParseResult ofBlocked()          { return new ParseResult(null, true);  }
         public static ParseResult referrer(String name){ return new ParseResult(name, false); }
     }
 
@@ -117,7 +117,7 @@ public class HostnameParser {
                 if (subdomain.isBlank() || subdomain.contains(".")) continue; // nested subdomain – skip
 
                 // Subdomains matching a blocked pattern are silently ignored (treated as direct join)
-                if (isBlockedSubdomain(subdomain)) return ParseResult.blocked();
+                if (isBlockedSubdomain(subdomain)) return ParseResult.ofBlocked();
 
                 // Check manual override for just the subdomain part
                 if (manualOverrides.containsKey(subdomain))
