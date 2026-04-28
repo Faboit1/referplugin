@@ -239,11 +239,9 @@ public class LoginListener implements Listener {
             plugin.getDb().removePendingReward(pr.getId());
         }
 
-        if (!pending.isEmpty()) {
-            MessageUtil.send(player, plugin.getConfigManager().getMessage(
-                    "referral.pending-delivered",
-                    "%count%", String.valueOf(pending.size())));
-        }
+        MessageUtil.send(player, plugin.getConfigManager().getMessage(
+                "referral.pending-delivered",
+                "%count%", String.valueOf(pending.size())));
     }
 
     // ── Milestone check ──────────────────────────────────────────────────────

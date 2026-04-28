@@ -319,7 +319,7 @@ public abstract class AbstractDatabase implements Database {
     @Override
     public boolean hasBeenReferred(UUID joinerUuid) {
         // Both SUCCESS and RELAXED_IP count as "already referred" – prevent being referred twice
-        String sql = "SELECT 1 FROM referral_records WHERE joiner_uuid = ? AND status IN ('SUCCESS','RELAXED_IP') LIMIT 1";
+        String sql = "SELECT 1 FROM referral_records WHERE joiner_uuid = ? AND status IN ('SUCCESS', 'RELAXED_IP') LIMIT 1";
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, joinerUuid.toString());

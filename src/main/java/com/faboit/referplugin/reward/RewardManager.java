@@ -88,11 +88,11 @@ public class RewardManager {
         if (profile.getXp() > 0) {
             new XPReward(profile.getXp()).apply(referrer, effectiveMulti);
         }
-        // Commands — placeholder convention follows existing applyProfile behaviour
+        // Commands — %referrer% = referrer's name, %joiner% = joiner's name
         for (String cmd : profile.getCommands()) {
             String resolved = cmd
-                    .replace("%referrer%", joinerName)
-                    .replace("%joiner%",   referrer.getName());
+                    .replace("%referrer%", referrer.getName())
+                    .replace("%joiner%",   joinerName);
             new CommandReward(plugin, resolved).apply(referrer, effectiveMulti);
         }
         // Chance rewards
@@ -104,8 +104,8 @@ public class RewardManager {
                 inner.add(new XPReward(entry.getXp()));
             for (String cmd : entry.getCommands()) {
                 String resolved = cmd
-                        .replace("%referrer%", joinerName)
-                        .replace("%joiner%",   referrer.getName());
+                        .replace("%referrer%", referrer.getName())
+                        .replace("%joiner%",   joinerName);
                 inner.add(new CommandReward(plugin, resolved));
             }
             new ChanceReward(entry.getChance(), inner).apply(referrer, effectiveMulti);
