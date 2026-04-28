@@ -1,41 +1,124 @@
-# ==============================
-# ReferPlugin - Messages
-# ==============================
-# Supports & colour codes and PlaceholderAPI placeholders
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║            ReferPlugin — Messages Configuration                     ║
+# ║  Every player-facing string is configurable here.                   ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+#
+# Colour codes: & prefix   Placeholders: %variable%
+# All messages are automatically prefixed with message-prefix from config.yml
+# unless they start with the special marker §r (raw — no prefix added).
 
+# ─────────────────────────────────────────────────────────────────────────────
+# GENERAL / ERROR MESSAGES
+# ─────────────────────────────────────────────────────────────────────────────
 no-permission: "&cYou don't have permission to do that."
 player-only: "&cThis command can only be used by players."
 unknown-command: "&cUnknown sub-command. Use &e/referral help &cfor help."
 plugin-reloaded: "&aPlugin reloaded successfully."
 player-not-found: "&cPlayer '&e%player%&c' not found."
+database-error: "&cA database error occurred. Please contact an administrator."
+feature-disabled: "&cThis feature is currently disabled."
+on-cooldown: "&cYou must wait before doing that again."
 
+# ─────────────────────────────────────────────────────────────────────────────
+# REFERRAL EVENTS
+# ─────────────────────────────────────────────────────────────────────────────
 referral:
-  success-referrer: "&aYou received a referral reward! &e%joiner% &ajoined using your link."
-  success-joiner: "&aWelcome! You joined via &e%referrer%'s &areferral link and received a reward."
-  blocked-self: "&cYou cannot refer yourself."
-  blocked-same-ip: "&cReferral blocked: same network detected."
-  blocked-cooldown: "&cThis referral is on cooldown. Please wait before trying again."
-  blocked-daily-cap: "&cYou have reached your daily referral limit."
-  blocked-weekly-cap: "&cYou have reached your weekly referral limit."
-  blocked-already-referred: "&cThis player has already been referred."
+  # ── Success ──────────────────────────────────────────────────────────────
+  # Sent to the referrer when someone joins through their link
+  success-referrer: "&a✔ &e%joiner% &ajoined using your referral link! You received a reward."
+  # Sent to the joiner on first join through a referral link
+  success-joiner: "&a✔ Welcome! You joined via &e%referrer%'s &areferral link and received a reward."
+
+  # ── Blocked reasons ───────────────────────────────────────────────────────
+  blocked-self: "&c✖ You cannot refer yourself."
+  blocked-same-ip: "&c✖ Referral blocked: the same network was already used."
+  blocked-cooldown: "&c✖ Referral on cooldown — please wait before this counts again."
+  blocked-daily-cap: "&c✖ You have reached your daily referral limit."
+  blocked-weekly-cap: "&c✖ You have reached your weekly referral limit."
+  blocked-already-referred: "&c✖ This player has already been referred."
+
+  # ── Informational ──────────────────────────────────────────────────────────
   no-host: "&7No referral link detected for your connection."
-  invalid-referrer: "&cReferral link invalid: &e%host% &cdoes not match any player."
+  invalid-referrer: "&cReferral link invalid — '&e%host%&c' does not match any player."
+  offline-referrer: "&7Referral logged, but &e%referrer% &7is offline and will receive their reward later."
+  reward-pending: "&7Your reward will be delivered when &e%referrer% &7next logs in."
 
+# ─────────────────────────────────────────────────────────────────────────────
+# STATS COMMAND  (/referral stats)
+# ─────────────────────────────────────────────────────────────────────────────
 stats:
-  header: "&8&m----&r &6&lReferral Stats &8&m----"
-  total: "&7Total Referrals: &e%referral_count%"
-  successful: "&7Successful: &a%successful%"
-  blocked: "&7Blocked: &c%blocked%"
-  rewards: "&7Total Rewards: &6%referral_total_rewards%"
-  footer: "&8&m--------------------"
+  header:    "&8&m━━━━━━━━━━━━&r &6&lReferral Stats &8&m━━━━━━━━━━━━"
+  player:    "&7Player: &e%player%"
+  profile:   "&7Active Profile: &e%referral_profile%"
+  total:     "&7Total Attempts: &f%referral_total%"
+  successful:"&aSuccessful:     &f%referral_count%"
+  blocked:   "&cBlocked:        &f%referral_blocked%"
+  rewards:   "&6Rewards Earned: &f$%referral_total_rewards%"
+  footer:    "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# HELP COMMAND  (/referral help)
+# ─────────────────────────────────────────────────────────────────────────────
 help:
-  header: "&8&m----&r &6&lReferral Commands &8&m----"
-  use: "&e/referral stats &7— View your referral stats"
-  gui: "&e/referral gui &7— Open the referral GUI"
-  info: "&e/referral info [player] &7— View referral info"
-  reload: "&e/referral reload &7— Reload the plugin (admin)"
-  footer: "&8&m--------------------"
+  header:     "&8&m━━━━━━━━━━━━&r &6&lReferral Commands &8&m━━━━━━━━━━━━"
+  use:        "&e/referral stats &8│ &7View your own stats"
+  stats-other:"&e/referral stats <player> &8│ &7View another player's stats &8(admin)"
+  gui:        "&e/referral gui &8│ &7Open your referral panel"
+  admin-gui:  "&e/referral admin &8│ &7Open the admin panel &8(admin)"
+  info:       "&e/referral info [player] &8│ &7Show profile info &8(admin)"
+  setprofile: "&e/referral setprofile <player> <profile> &8│ &7Override a reward profile &8(admin)"
+  reload:     "&e/referral reload &8│ &7Reload the plugin configuration &8(admin)"
+  footer:     "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# INFO COMMAND  (/referral info)
+# ─────────────────────────────────────────────────────────────────────────────
+info:
+  header:    "&8&m━━━━━━━━━━━━&r &6&l%player% &8&m━━━━━━━━━━━━"
+  uuid:      "&7UUID: &8%uuid%"
+  profile:   "&7Reward Profile: &e%referral_profile%"
+  stats:     "&aSuccessful: &f%referral_count% &7| &cBlocked: &f%referral_blocked%"
+  rewards:   "&7Total Rewards: &6$%referral_total_rewards%"
+  footer:    "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ADMIN ACTIONS
+# ─────────────────────────────────────────────────────────────────────────────
+admin:
+  profile-set: "&aSet reward profile for &e%player% &ato &6%profile%&a."
+  profile-invalid: "&cProfile '&e%profile%&c' does not exist in the configuration."
+  reward-given: "&aManually triggered reward for &e%player%&a."
+  reward-failed: "&cFailed to give reward to &e%player%&c. Check console for details."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MILESTONES
+# ─────────────────────────────────────────────────────────────────────────────
 milestone:
-  reached: "&6&lMilestone! &eYou have reached &6%referrals% referrals!"
+  reached: "&6&l✦ Milestone! &eYou have reached &6%referrals% &esuccessful referrals!"
+  reward-given: "&7Milestone reward delivered — &6$%money% &7and &b%xp% XP"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GUI DISPLAY STRINGS (used in dynamically-built lore / inventory titles)
+# ─────────────────────────────────────────────────────────────────────────────
+gui:
+  player:
+    no-history: "&7No referral history yet."
+    milestone-complete: "&a✔ All milestones completed!"
+    milestone-progress: "&7Progress: &e%current% &7/ &e%target%"
+    milestone-bar-label: ""
+    history-entry-success: "&aSuccess"
+    history-entry-blocked: "&cBlocked"
+    history-host-label: "&7Host: &f%referral_host%"
+    history-when-label: "&7When: &f%date%"
+  admin:
+    leaderboard-rank: "&e#%rank% &f%player%"
+    leaderboard-stats: "&7Successful: &a%referral_count%  &7Blocked: &c%referral_blocked%"
+    leaderboard-rewards: "&7Rewards: &6$%referral_total_rewards%"
+    leaderboard-profile: "&7Profile: &e%referral_profile%"
+    suspicious-status: "&cStatus: &f%status%"
+    suspicious-joiner: "&7Joiner: &f%uuid%"
+    suspicious-ip: "&7IP: &f%ip%"
+    suspicious-host: "&7Host: &f%referral_host%"
+    suspicious-when: "&7When: &f%date%"
+    no-suspicious: "&7No suspicious activity recorded."
+    no-leaderboard: "&7No referral data yet."

@@ -5,9 +5,11 @@ import com.faboit.referplugin.config.ConfigManager;
 import com.faboit.referplugin.database.Database;
 import com.faboit.referplugin.model.PlayerStats;
 import com.faboit.referplugin.model.ReferralRecord;
+import com.faboit.referplugin.util.NotificationUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -18,25 +20,17 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Admin panel GUI.
- *
- * <p>Layout (54 slots):
- * <ul>
- *   <li>Slots 0–8   – Top 9 referrers leaderboard</li>
- *   <li>Slots 18–26 – Suspicious activity log (9 recent blocked events)</li>
- *   <li>Slot 49     – Close button</li>
- * </ul>
+ * All slot positions, materials, names, lore and filler are driven entirely
+ * from {@code gui.admin.*} in config.yml.
  */
 public class AdminGUI implements Listener {
-
-    private static final DateTimeFormatter DATE_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneOffset.UTC);
 
     private final ReferPlugin   plugin;
     private final ConfigManager configManager;
@@ -49,79 +43,174 @@ public class AdminGUI implements Listener {
     }
 
     public void open(Player admin) {
-        String title = ConfigManager.colorize(
-                configManager.getConfig().getString("gui.admin.title", "&c&lAdmin Panel"));
-        int rows = configManager.getConfig().getInt("gui.admin.rows", 6);
-        rows = Math.max(1, Math.min(6, rows));
-
-        Inventory inv = Bukkit.createInventory(null, rows * 9, title);
-
-        // Row 1: Top referrers leaderboard (slots 0–8)
-        inv.setItem(0, makeItem(Material.NETHER_STAR, ChatColor.AQUA + "" + ChatColor.BOLD + "Top Referrers", List.of()));
-        List<PlayerStats> top = database.getTopReferrers(8);
-        for (int i = 0; i < top.size(); i++) {
-            PlayerStats s = top.get(i);
-            List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Successful: " + ChatColor.GREEN + s.getSuccessfulReferrals());
-            lore.add(ChatColor.GRAY + "Blocked:    " + ChatColor.RED   + s.getBlockedReferrals());
-            lore.add(ChatColor.GRAY + "Rewards:    " + ChatColor.GOLD  + String.format("$%.2f", s.getTotalRewards()));
-            lore.add(ChatColor.GRAY + "Profile:    " + ChatColor.YELLOW + s.getRewardProfile());
-            inv.setItem(1 + i, makePlayerHead(s.getUsername(),
-                    ChatColor.GOLD + "#" + (i + 1) + " " + s.getUsername(), lore));
+        ConfigurationSection guiCfg = configManager.getConfig()
+                .getConfigurationSection("gui.admin");
+        if (guiCfg != null && !guiCfg.getBoolean("enabled", true)) {
+            admin.sendMessage(configManager.getMessage("feature-disabled"));
+            return;
         }
 
-        // Section header: suspicious activity
-        inv.setItem(18, makeItem(Material.REDSTONE, ChatColor.RED + "" + ChatColor.BOLD + "Suspicious Activity", List.of()));
+        String title = ConfigManager.colorize(configManager.getConfig()
+                .getString("gui.admin.title", "&c&lAdmin Panel"));
+        int rows = Math.max(1, Math.min(6, configManager.getConfig()
+                .getInt("gui.admin.rows", 6)));
+        Inventory inv = Bukkit.createInventory(null, rows * 9, title);
 
-        // Row 3: Suspicious records (slots 19–26)
-        List<ReferralRecord> suspicious = database.getSuspiciousRecords(8);
+        ConfigurationSection items = configManager.getConfig()
+                .getConfigurationSection("gui.admin.items");
+
+        // Leaderboard header
+        placeItemFromSection(inv, items, "leaderboard-header", 0, "NETHER_STAR");
+
+        // Leaderboard entries
+        int lbSize = items != null ? items.getInt("leaderboard-size", 8) : 8;
+        List<PlayerStats> top = database.getTopReferrers(lbSize);
+        for (int i = 0; i < top.size(); i++) {
+            PlayerStats s = top.get(i);
+            int rank = i + 1;
+            List<String> lore = buildLeaderboardLore(s, rank);
+            inv.setItem(1 + i, makePlayerHead(s.getUsername(),
+                    colorize(configManager.getMessages()
+                            .getString("gui.admin.leaderboard-rank", "&e#%rank% &f%player%")
+                            .replace("%rank%",  String.valueOf(rank))
+                            .replace("%player%", s.getUsername())),
+                    lore));
+        }
+        if (top.isEmpty()) {
+            inv.setItem(1, makeBasicItem(Material.GRAY_DYE,
+                    colorize(configManager.getMessages()
+                            .getString("gui.admin.no-leaderboard", "&7No referral data yet.")),
+                    List.of()));
+        }
+
+        // Suspicious header
+        placeItemFromSection(inv, items, "suspicious-header", 18, "REDSTONE");
+
+        // Suspicious entries
+        String dateFmt = configManager.getConfig()
+                .getString("gui.admin.history.date-format", "yyyy-MM-dd HH:mm");
+        String tz = configManager.getConfig().getString("formatting.timezone", "UTC");
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern(dateFmt).withZone(ZoneId.of(tz));
+
+        int suspSize = items != null ? items.getInt("suspicious-size", 8) : 8;
+        List<ReferralRecord> suspicious = database.getSuspiciousRecords(suspSize);
         for (int i = 0; i < suspicious.size(); i++) {
             ReferralRecord r = suspicious.get(i);
-            String when = DATE_FMT.format(Instant.ofEpochMilli(r.getTimestamp()));
-            List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Status:  " + ChatColor.RED   + r.getStatus().name());
-            lore.add(ChatColor.GRAY + "Joiner:  " + ChatColor.WHITE + r.getJoinerUuid().toString().substring(0, 8) + "...");
-            lore.add(ChatColor.GRAY + "IP:      " + ChatColor.WHITE + safe(r.getJoinerIp()));
-            lore.add(ChatColor.GRAY + "Host:    " + ChatColor.WHITE + safe(r.getReferralHost()));
-            lore.add(ChatColor.GRAY + "When:    " + ChatColor.WHITE + when);
-            inv.setItem(19 + i, makeItem(Material.RED_CONCRETE, ChatColor.RED + r.getStatus().name(), lore));
+            String when = fmt.format(Instant.ofEpochMilli(r.getTimestamp()));
+            List<String> lore = buildSuspiciousLore(r, when);
+            inv.setItem(19 + i, makeBasicItem(Material.RED_CONCRETE,
+                    colorize(ChatColor.RED + r.getStatus().name()), lore));
+        }
+        if (suspicious.isEmpty()) {
+            inv.setItem(19, makeBasicItem(Material.LIME_DYE,
+                    colorize(configManager.getMessages()
+                            .getString("gui.admin.no-suspicious", "&7No suspicious activity recorded.")),
+                    List.of()));
         }
 
         // Close button
-        inv.setItem(49, makeItem(Material.BARRIER, ChatColor.RED + "Close", List.of()));
-
-        // Filler
-        ItemStack filler = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ", List.of());
-        for (int i = 0; i < inv.getSize(); i++) {
-            if (inv.getItem(i) == null) inv.setItem(i, filler);
+        if (items != null && items.isConfigurationSection("close-button")) {
+            int cbSlot = items.getInt("close-button.slot", 49);
+            placeItemFromSection(inv, items, "close-button", cbSlot, "BARRIER");
         }
 
+        // Filler
+        fillEmpty(inv);
+
         admin.openInventory(inv);
+
+        // Open sound
+        playSoundFromSection(admin,
+                configManager.getConfig().getConfigurationSection("gui.admin.open-sound"));
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player p)) return;
-        String title = event.getView().getTitle();
-        if (!title.equals(ConfigManager.colorize(
-                configManager.getConfig().getString("gui.admin.title", "&c&lAdmin Panel")))) return;
+        String expectedTitle = ConfigManager.colorize(configManager.getConfig()
+                .getString("gui.admin.title", "&c&lAdmin Panel"));
+        if (!event.getView().getTitle().equals(expectedTitle)) return;
         event.setCancelled(true);
-        if (event.getCurrentItem() != null
-                && event.getCurrentItem().getType() == Material.BARRIER) {
+
+        if (event.getCurrentItem() == null) return;
+        ConfigurationSection items = configManager.getConfig()
+                .getConfigurationSection("gui.admin.items");
+        if (items == null) return;
+        int closeSlot = items.getInt("close-button.slot", 49);
+        if (event.getSlot() == closeSlot) {
             p.closeInventory();
         }
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private ItemStack makeItem(Material mat, String name, List<String> lore) {
+    private List<String> buildLeaderboardLore(PlayerStats s, int rank) {
+        List<String> lore = new ArrayList<>();
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.leaderboard-stats",
+                        "&7Successful: &a%referral_count%  &7Blocked: &c%referral_blocked%")
+                .replace("%referral_count%",   String.valueOf(s.getSuccessfulReferrals()))
+                .replace("%referral_blocked%", String.valueOf(s.getBlockedReferrals()))));
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.leaderboard-rewards",
+                        "&7Rewards: &6$%referral_total_rewards%")
+                .replace("%referral_total_rewards%", String.format("%.2f", s.getTotalRewards()))));
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.leaderboard-profile",
+                        "&7Profile: &e%referral_profile%")
+                .replace("%referral_profile%", s.getRewardProfile())));
+        return lore;
+    }
+
+    private List<String> buildSuspiciousLore(ReferralRecord r, String when) {
+        List<String> lore = new ArrayList<>();
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.suspicious-status", "&cStatus: &f%status%")
+                .replace("%status%", r.getStatus().name())));
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.suspicious-joiner", "&7Joiner: &f%uuid%")
+                .replace("%uuid%", r.getJoinerUuid().toString().substring(0, 8) + "…")));
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.suspicious-ip", "&7IP: &f%ip%")
+                .replace("%ip%", safe(r.getJoinerIp()))));
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.suspicious-host", "&7Host: &f%referral_host%")
+                .replace("%referral_host%", safe(r.getReferralHost()))));
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.suspicious-when", "&7When: &f%date%")
+                .replace("%date%", when)));
+        return lore;
+    }
+
+    private void placeItemFromSection(Inventory inv, ConfigurationSection items,
+                                       String key, int defaultSlot, String defaultMat) {
+        if (items == null || !items.isConfigurationSection(key)) return;
+        ConfigurationSection sec = items.getConfigurationSection(key);
+        assert sec != null;
+        int slot = sec.getInt("slot", defaultSlot);
+        Material mat = safeMaterial(sec.getString("material", defaultMat));
+        String name = colorize(sec.getString("name", ""));
+        List<String> lore = new ArrayList<>();
+        for (String l : sec.getStringList("lore")) lore.add(colorize(l));
+        setIfValid(inv, slot, makeBasicItem(mat, name, lore));
+    }
+
+    private void fillEmpty(Inventory inv) {
+        ConfigurationSection filler = configManager.getConfig()
+                .getConfigurationSection("gui.admin.filler");
+        if (filler == null || !filler.getBoolean("enabled", true)) return;
+        Material mat = safeMaterial(filler.getString("material", "GRAY_STAINED_GLASS_PANE"));
+        String name = colorize(filler.getString("name", " "));
+        ItemStack item = makeBasicItem(mat, name, List.of());
+        for (int i = 0; i < inv.getSize(); i++) {
+            if (inv.getItem(i) == null) inv.setItem(i, item);
+        }
+    }
+
+    private ItemStack makeBasicItem(Material mat, String name, List<String> lore) {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(name);
-            meta.setLore(lore);
-            item.setItemMeta(meta);
-        }
+        if (meta != null) { meta.setDisplayName(name); meta.setLore(lore); item.setItemMeta(meta); }
         return item;
     }
 
@@ -137,5 +226,20 @@ public class AdminGUI implements Listener {
         return skull;
     }
 
+    private void setIfValid(Inventory inv, int slot, ItemStack item) {
+        if (slot >= 0 && slot < inv.getSize()) inv.setItem(slot, item);
+    }
+
+    private Material safeMaterial(String name) {
+        if (name == null) return Material.STONE;
+        Material mat = Material.matchMaterial(name.toUpperCase());
+        return mat != null ? mat : Material.STONE;
+    }
+
+    private String colorize(String s) { return ConfigManager.colorize(s); }
     private String safe(String s) { return s != null ? s : "N/A"; }
+
+    private void playSoundFromSection(Player player, ConfigurationSection sec) {
+        NotificationUtil.playSound(player, sec, plugin.getLogger());
+    }
 }

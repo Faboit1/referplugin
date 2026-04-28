@@ -6,6 +6,7 @@ import com.faboit.referplugin.model.ReferralRecord;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -60,31 +61,35 @@ public class AbuseDetector {
         if (configManager.getConfig().getBoolean("anti-abuse.same-ip-block", true)
                 && joinerIp != null && !joinerIp.isBlank()) {
 
-            boolean ipConflict = database.ipUsedByOtherPlayer(joinerIp, joinerUuid);
-            if (!ipConflict && referrerOnline != null) {
-                // Also check if the joiner's IP matches the referrer's current/stored IP
-                String referrerIp = sanitiseIp(referrerOnline.getAddress() != null
-                        ? referrerOnline.getAddress().getAddress().getHostAddress() : null);
-                ipConflict = joinerIp.equals(referrerIp);
-            }
+            // Check IP whitelist — whitelisted IPs are never blocked
+            List<String> whitelist = configManager.getConfig()
+                    .getStringList("anti-abuse.ip-whitelist");
+            if (!whitelist.contains(joinerIp)) {
+                boolean ipConflict = database.ipUsedByOtherPlayer(joinerIp, joinerUuid);
+                if (!ipConflict && referrerOnline != null) {
+                    // Also check if the joiner's IP matches the referrer's current/stored IP
+                    String referrerIp = sanitiseIp(referrerOnline.getAddress() != null
+                            ? referrerOnline.getAddress().getAddress().getHostAddress() : null);
+                    ipConflict = joinerIp.equals(referrerIp);
+                }
 
-            if (ipConflict) {
-                String enforcement = configManager.getConfig()
-                        .getString("anti-abuse.enforcement", "strict").toLowerCase();
-                if ("relaxed".equals(enforcement)) {
-                    log("RELAXED_IP", joiner.getName(), referrerName, joinerIp, "Same IP – relaxed mode");
-                    return AbuseResult.relaxed("Same IP (relaxed)");
-                } else {
-                    log("BLOCKED_SAME_IP", joiner.getName(), referrerName, joinerIp, "Same IP – strict");
-                    return AbuseResult.blocked(ReferralRecord.Status.BLOCKED_SAME_IP, "Same IP");
+                if (ipConflict) {
+                    String enforcement = configManager.getConfig()
+                            .getString("anti-abuse.enforcement", "strict").toLowerCase();
+                    if ("relaxed".equals(enforcement)) {
+                        log("RELAXED_IP", joiner.getName(), referrerName, joinerIp, "Same IP – relaxed mode");
+                        return AbuseResult.relaxed("Same IP (relaxed)");
+                    } else {
+                        log("BLOCKED_SAME_IP", joiner.getName(), referrerName, joinerIp, "Same IP – strict");
+                        return AbuseResult.blocked(ReferralRecord.Status.BLOCKED_SAME_IP, "Same IP");
+                    }
                 }
             }
         }
 
         // --- 4. Cooldown check ---
         if (referrerUuid != null && !joiner.hasPermission("referplugin.bypass.cooldown")) {
-            int cooldownHours = configManager.getConfig()
-                    .getInt("anti-abuse.cooldown-hours", 24);
+            int cooldownHours = resolveCooldown(joiner);
             if (cooldownHours > 0) {
                 long lastReferral = getLastReferralTimestamp(referrerUuid);
                 long cooldownMs = cooldownHours * 3_600_000L;
@@ -97,7 +102,7 @@ public class AbuseDetector {
 
         // --- 5. Daily cap ---
         if (referrerUuid != null && !joiner.hasPermission("referplugin.bypass.cap")) {
-            int dailyCap = configManager.getConfig().getInt("anti-abuse.daily-cap", 0);
+            int dailyCap = resolveDailyCap(joiner);
             if (dailyCap > 0) {
                 int todayCount = database.countSuccessfulReferralsToday(referrerUuid);
                 if (todayCount >= dailyCap) {
@@ -107,7 +112,7 @@ public class AbuseDetector {
             }
 
             // --- 6. Weekly cap ---
-            int weeklyCap = configManager.getConfig().getInt("anti-abuse.weekly-cap", 0);
+            int weeklyCap = resolveWeeklyCap(joiner);
             if (weeklyCap > 0) {
                 int weekCount = database.countSuccessfulReferralsThisWeek(referrerUuid);
                 if (weekCount >= weeklyCap) {
@@ -123,6 +128,52 @@ public class AbuseDetector {
     private long getLastReferralTimestamp(UUID referrerUuid) {
         var stats = database.getPlayerStats(referrerUuid);
         return stats != null ? stats.getLastReferralTimestamp() : 0;
+    }
+
+    /**
+     * Resolves the effective cooldown for a player, checking per-permission
+     * overrides first (lowest wins).
+     */
+    private int resolveCooldown(Player player) {
+        var overrides = configManager.getConfig()
+                .getConfigurationSection("anti-abuse.cooldown-overrides");
+        if (overrides != null) {
+            int best = Integer.MAX_VALUE;
+            boolean found = false;
+            for (String perm : overrides.getKeys(false)) {
+                if (player.hasPermission(perm)) {
+                    int val = overrides.getInt(perm, 24);
+                    if (val < best) { best = val; found = true; }
+                }
+            }
+            if (found) return best;
+        }
+        return configManager.getConfig().getInt("anti-abuse.cooldown-hours", 24);
+    }
+
+    /**
+     * Resolves the effective daily cap for a player, checking per-permission
+     * overrides first (highest wins; 0 = unlimited).
+     */
+    private int resolveDailyCap(Player player) {
+        var overrides = configManager.getConfig()
+                .getConfigurationSection("anti-abuse.cap-overrides");
+        if (overrides != null) {
+            for (String perm : overrides.getKeys(false)) {
+                if (player.hasPermission(perm)) {
+                    return overrides.getInt(perm, 10);
+                }
+            }
+        }
+        return configManager.getConfig().getInt("anti-abuse.daily-cap", 10);
+    }
+
+    /**
+     * Resolves the effective weekly cap for a player.
+     */
+    private int resolveWeeklyCap(Player player) {
+        // Weekly cap re-uses the same cap-overrides section (value × 7 heuristic)
+        return configManager.getConfig().getInt("anti-abuse.weekly-cap", 50);
     }
 
     private void log(String type, String joiner, String referrer, String ip, String reason) {

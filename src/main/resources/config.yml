@@ -1,115 +1,671 @@
-# ==============================
-# ReferPlugin - Main Configuration
-# ==============================
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║            ReferPlugin — Complete Configuration                     ║
+# ║  Every single aspect of the plugin is controllable from here.       ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+#
+# Colour codes: use & followed by the code.
+#   &0-&9 / &a-&f = colours   &l bold &o italic &n underline &m strikethrough &r reset
+#
+# Common placeholders (available in most strings):
+#   %referrer%               the referrer's username
+#   %joiner%                 the joiner's username
+#   %referral_host%          raw hostname the player connected with
+#   %referral_count%         referrer's successful referral count
+#   %referral_total%         referrer's total attempts
+#   %referral_blocked%       referrer's blocked count
+#   %referral_total_rewards% referrer's accumulated reward money (formatted)
+#   %referral_profile%       active reward profile name
+#   %money%                  money amount for the current reward event
+#   %player%                 target player name
+#   %top_N_name%             name of Nth leaderboard entry
+#   %top_N_count%            successful referrals of Nth leaderboard entry
 
-# Database settings
+# ─────────────────────────────────────────────────────────────────────────────
+# GENERAL
+# ─────────────────────────────────────────────────────────────────────────────
+general:
+  # Print extra info to console. Useful while setting up; disable in production.
+  debug: false
+  # Log every successful referral to console
+  log-referrals: true
+  # Log every blocked/suspicious attempt to console
+  log-blocked: true
+  # Log every reward given to console
+  log-rewards: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASE
+# ─────────────────────────────────────────────────────────────────────────────
 database:
-  type: SQLITE   # SQLITE or MYSQL
+  # SQLITE or MYSQL
+  type: SQLITE
+
+  sqlite:
+    # File name (relative to the plugin data folder)
+    file: data.db
+    # Write-Ahead Logging for better concurrent performance
+    wal-mode: true
+    # NORMAL = safe and fast; FULL = safest; OFF = fastest (not recommended)
+    synchronous: NORMAL
+    # Enforce referential integrity
+    foreign-keys: true
+
   mysql:
     host: localhost
     port: 3306
     database: referplugin
     username: root
-    password: password
-    pool-size: 10
-    connection-timeout: 30000
+    password: ""
+    # Append custom parameters to the JDBC URL
+    extra-params: "useSSL=false&serverTimezone=UTC&characterEncoding=utf8"
+    pool:
+      minimum-idle: 2
+      maximum-pool-size: 10
+      # Milliseconds to wait for a connection from the pool
+      connection-timeout: 30000
+      # Milliseconds before an idle connection is retired
+      idle-timeout: 600000
+      # Milliseconds before a connection is forcibly retired (should be < MySQL wait_timeout)
+      max-lifetime: 1800000
+      # Milliseconds between keepalive pings (0 = disabled)
+      keepalive-time: 60000
+      # Milliseconds before a leaked connection is logged (0 = disabled)
+      leak-detection-threshold: 0
 
-# Redis (optional – used for cross-server IP caching with Velocity/BungeeCord)
+  # Automatically purge old records to keep the database lean
+  pruning:
+    enabled: true
+    # Delete referral_records older than this many days
+    records-older-than-days: 90
+    # Delete referral_ip_log entries older than this many days
+    ip-log-older-than-days: 30
+    # How often to run the pruning task (hours)
+    run-every-hours: 24
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REDIS  (cross-server IP caching for Velocity / BungeeCord networks)
+# ─────────────────────────────────────────────────────────────────────────────
 redis:
   enabled: false
   host: localhost
   port: 6379
+  # Leave empty for no password
   password: ""
+  # Redis logical database index (0–15)
   database: 0
+  # Connection / socket timeout (ms)
+  timeout: 2000
+  # Connection pool sizing
+  pool:
+    max-total: 8
+    max-idle: 8
+    min-idle: 0
+  # How long (seconds) to cache a player's IP in Redis
+  ip-cache-ttl: 86400
+  # Key prefix (useful when sharing a Redis instance across plugins)
+  key-prefix: "referplugin:"
 
-# Hostname / subdomain parsing
+# ─────────────────────────────────────────────────────────────────────────────
+# HOSTNAME PARSING
+# ─────────────────────────────────────────────────────────────────────────────
 hostname:
-  # Base domain to strip when parsing subdomains
+  # The primary base domain to strip when parsing subdomains.
+  # e.g. "faboit.cheesesmp.top" → referrer = "faboit"
   base-domain: "cheesesmp.top"
-  # Optional manual overrides: <subdomain>: <minecraft_username>
-  manual-overrides: {}
-  #  mylink: faboit
 
-# Anti-abuse settings
+  # Additional base domains accepted (all checked in order)
+  extra-domains: []
+  #  - "cheesesmp.com"
+  #  - "cheese.gg"
+
+  # Strip a leading "www." before processing
+  strip-www: true
+
+  # Enforce a maximum length for extracted subdomains
+  max-subdomain-length: 16
+  # Enforce a minimum length
+  min-subdomain-length: 3
+
+  # Regex the subdomain must match (leave empty to skip regex check)
+  # Default allows letters, digits and underscores, 3-16 chars
+  subdomain-regex: "^[a-zA-Z0-9_]{3,16}$"
+
+  # Manual overrides: subdomain (or full hostname) → exact Minecraft username
+  # The subdomain key is case-insensitive.
+  manual-overrides: {}
+  #  mylink:  faboit
+  #  support: AdminPlayerName
+
+  # Allow referrers whose account cannot be found online (e.g. offline-mode servers).
+  # When false, the referral is silently ignored if the referrer is not currently online.
+  allow-offline-referrers: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ANTI-ABUSE
+# ─────────────────────────────────────────────────────────────────────────────
 anti-abuse:
-  # strict = block completely | relaxed = apply reduced rewards
+  # How to handle rule violations:
+  #   strict  → block the referral entirely (no rewards given)
+  #   relaxed → allow but apply a reduced reward multiplier
   enforcement: strict
-  same-ip-block: true
+
+  # Block a player from referring themselves
   self-referral-block: true
-  # Hours between valid referral windows per referrer
+
+  # Prevent a player from being referred more than once ever
+  already-referred-block: true
+
+  # Block referrals from the same IP address
+  same-ip-block: true
+
+  # IPs that are never flagged (useful for LAN admins, testing)
+  ip-whitelist:
+    - "127.0.0.1"
+    - "::1"
+
+  # ── Cooldowns ──────────────────────────────────────────────────────────────
+  # Hours a referrer must wait between valid referrals (0 = no cooldown)
   cooldown-hours: 24
-  # Max successful referrals per day / week (0 = unlimited)
+
+  # Per-permission cooldown overrides (more specific beats the default)
+  # Format:  "permission.node": hours
+  cooldown-overrides:
+    "referral.cooldown.12h": 12
+    "referral.cooldown.6h": 6
+    "referral.cooldown.1h": 1
+    "referral.cooldown.none": 0
+
+  # ── Caps ───────────────────────────────────────────────────────────────────
+  # Maximum successful referrals per day (0 = unlimited)
   daily-cap: 10
+  # Maximum successful referrals per week (0 = unlimited)
   weekly-cap: 50
-  # Multiplier applied for relaxed enforcement (0.5 = 50% of normal rewards)
+
+  # Per-permission cap overrides
+  cap-overrides:
+    "referral.cap.20":        20
+    "referral.cap.unlimited":  0
+
+  # ── Relaxed mode ───────────────────────────────────────────────────────────
+  # Reward multiplier applied when enforcement = relaxed and an IP overlap is found
   relaxed-reward-multiplier: 0.5
 
-# Default reward profiles
-reward-profiles:
-  default_referrer:
-    money: 500.0
-    xp: 100
-    commands: []
-    items: []
-    chance-rewards: []
+  # ── Suspicious activity logging ────────────────────────────────────────────
+  # Write a separate log file for blocked/suspicious referral attempts
+  log-suspicious-to-file: false
+  suspicious-log-file: "suspicious.log"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# REWARD PROFILES
+# Each profile supports: money, xp, commands, items, chance-rewards,
+# and per-event notification overrides (broadcast, title, actionbar, sound,
+# fireworks).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Notification sub-section (reused inside each profile) ─────────────────
+# broadcast:  enabled, message
+# title:      enabled, title, subtitle, fade-in, stay, fade-out
+# actionbar:  enabled, message, duration-ticks
+# sound:      enabled, sound, volume, pitch
+# fireworks:  enabled, count, power
+
+reward-profiles:
+
+  # ─── Default profile given to the player who REFERRED someone ───────────
+  default_referrer:
+    enabled: true
+    # Vault money (requires Vault + an economy plugin)
+    money: 500.0
+    # Experience points
+    xp: 100
+    # Console commands run with full placeholder support
+    commands: []
+    #  - "eco give %referrer% 100"
+    # Items to give (material + amount; items that don't fit are dropped)
+    items: []
+    #  - material: DIAMOND
+    #    amount: 1
+    # Chance-based bonus rewards
+    chance-rewards: []
+    #  - chance: 0.10          # 10 % probability
+    #    money: 250.0
+    #    xp: 50
+    #    commands:
+    #      - "broadcast &6%referrer% &egot a lucky bonus!"
+    notifications:
+      broadcast:
+        enabled: false
+        message: "&6%referrer% &ejust received a referral reward from &6%joiner%&e!"
+      title:
+        enabled: false
+        title: "&6&lReferral!"
+        subtitle: "&e%joiner% joined using your link"
+        fade-in: 10
+        stay: 60
+        fade-out: 10
+      actionbar:
+        enabled: true
+        message: "&6+$%money% &efrom referral reward!"
+        # How long to show the action bar (ticks; 0 = single packet / client default)
+        duration-ticks: 60
+      sound:
+        enabled: true
+        # Any org.bukkit.Sound name
+        sound: ENTITY_PLAYER_LEVELUP
+        volume: 1.0
+        pitch: 1.2
+      fireworks:
+        enabled: false
+        count: 3
+        power: 1
+
+  # ─── Default profile given to the player who JOINED via a referral ──────
   default_joiner:
+    enabled: true
     money: 250.0
     xp: 50
     commands: []
     items: []
     chance-rewards: []
+    notifications:
+      broadcast:
+        enabled: false
+        message: "&e%joiner% &7joined the server via &6%referrer%'s &7referral link!"
+      title:
+        enabled: true
+        title: "&a&lWelcome!"
+        subtitle: "&7You received a reward from &6%referrer%"
+        fade-in: 10
+        stay: 80
+        fade-out: 20
+      actionbar:
+        enabled: true
+        message: "&a+$%money% &ewelcome reward!"
+        duration-ticks: 60
+      sound:
+        enabled: true
+        sound: ENTITY_PLAYER_LEVELUP
+        volume: 1.0
+        pitch: 1.0
+      fireworks:
+        enabled: false
+        count: 1
+        power: 0
 
-# Per-player custom profiles (key = exact Minecraft username, case-insensitive)
+# ── Per-player custom REFERRER profiles ───────────────────────────────────
+# Key = Minecraft username (case-insensitive)
 custom-referrer-profiles:
   faboit:
     money: 1000.0
     xp: 200
     commands:
       - "crate give %referrer% epic 1"
-    items: []
-    chance-rewards: []
+    items:
+      - material: DIAMOND
+        amount: 2
+    chance-rewards:
+      - chance: 0.10
+        money: 500.0
+        xp: 0
+        commands:
+          - "broadcast &d%referrer% &5got a lucky bonus referral reward!"
+    notifications:
+      broadcast:
+        enabled: true
+        message: "&d%referrer% &5received a premium referral reward from &d%joiner%&5!"
+      title:
+        enabled: true
+        title: "&d&lPremium Referral!"
+        subtitle: "&5%joiner% joined using your custom link"
+        fade-in: 10
+        stay: 80
+        fade-out: 20
+      actionbar:
+        enabled: true
+        message: "&d+$%money% &5premium referral!"
+        duration-ticks: 80
+      sound:
+        enabled: true
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+        volume: 1.0
+        pitch: 1.0
+      fireworks:
+        enabled: true
+        count: 5
+        power: 1
 
+# ── Per-player custom JOINER profiles ─────────────────────────────────────
 custom-joiner-profiles: {}
+#  somespecialplayer:
+#    money: 500.0
+#    xp: 100
+#    commands:
+#      - "kit give %joiner% starter"
+#    notifications:
+#      title:
+#        enabled: true
+#        title: "&b&lSpecial Welcome!"
+#        subtitle: "&7You have a custom welcome reward"
+#        fade-in: 10
+#        stay: 80
+#        fade-out: 20
 
-# Permission-based reward modifiers
-# Each node specifies multipliers applied on top of base profile rewards
+# ── Permission-based reward multipliers ────────────────────────────────────
+# Applied on top of the resolved profile rewards.
+# stack: true → multiply each modifier together; false → take the highest
 permission-modifiers:
   "referral.boost.1":
     money-multiplier: 1.5
     xp-multiplier: 1.5
-    stack: true        # Whether this modifier stacks with other modifiers
+    stack: true
+    # referrer, joiner, or both
+    apply-to: both
   "referral.boost.2":
     money-multiplier: 2.0
     xp-multiplier: 2.0
     stack: true
+    apply-to: both
+  "referral.boost.vip":
+    money-multiplier: 3.0
+    xp-multiplier: 2.5
+    stack: false
+    apply-to: referrer
 
-# Milestones: rewards given when referrer reaches N total successful referrals
+# ─────────────────────────────────────────────────────────────────────────────
+# MILESTONES
+# Triggered when a referrer's successful referral count crosses the threshold.
+# Rewards are one-time (not repeated on subsequent joins).
+# ─────────────────────────────────────────────────────────────────────────────
 milestones:
   - referrals: 5
     rewards:
       money: 1000.0
+      xp: 500
       commands:
-        - "broadcast &6%referrer% &ehas reached &65 referrals!"
+        - "broadcast &6[Referrals] &e%referrer% &7has reached &65 referrals!"
+      items: []
+    notifications:
+      title:
+        enabled: true
+        title: "&6&lMilestone!"
+        subtitle: "&e5 Referrals Reached!"
+        fade-in: 10
+        stay: 80
+        fade-out: 20
+      sound:
+        enabled: true
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+        volume: 1.0
+        pitch: 1.2
+      fireworks:
+        enabled: true
+        count: 5
+        power: 1
+
   - referrals: 10
     rewards:
       money: 2500.0
+      xp: 1000
       commands:
-        - "broadcast &6%referrer% &ehas reached &610 referrals!"
+        - "broadcast &6[Referrals] &e%referrer% &7has reached &610 referrals!"
+      items: []
+    notifications:
+      title:
+        enabled: true
+        title: "&6&lMilestone!"
+        subtitle: "&e10 Referrals Reached!"
+        fade-in: 10
+        stay: 80
+        fade-out: 20
+      sound:
+        enabled: true
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+        volume: 1.0
+        pitch: 1.0
+      fireworks:
+        enabled: true
+        count: 10
+        power: 1
+
   - referrals: 25
     rewards:
-      money: 5000.0
+      money: 7500.0
+      xp: 2500
       commands:
-        - "broadcast &6%referrer% &ehas reached &625 referrals!"
+        - "broadcast &d[Referrals] &5%referrer% &7has reached &d25 referrals!"
+      items: []
+    notifications:
+      title:
+        enabled: true
+        title: "&d&lLegendary Milestone!"
+        subtitle: "&525 Referrals Reached!"
+        fade-in: 10
+        stay: 100
+        fade-out: 20
+      sound:
+        enabled: true
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+        volume: 1.0
+        pitch: 0.8
+      fireworks:
+        enabled: true
+        count: 15
+        power: 2
 
-# GUI settings
+  - referrals: 50
+    rewards:
+      money: 20000.0
+      xp: 5000
+      commands:
+        - "broadcast &c[Referrals] &4%referrer% &7has reached &c50 referrals! INSANE!"
+      items: []
+    notifications:
+      title:
+        enabled: true
+        title: "&c&l✦ INSANE MILESTONE ✦"
+        subtitle: "&450 Referrals — You are a legend!"
+        fade-in: 10
+        stay: 120
+        fade-out: 20
+      sound:
+        enabled: true
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+        volume: 1.0
+        pitch: 0.5
+      fireworks:
+        enabled: true
+        count: 30
+        power: 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTO-BROADCAST (periodic top-referrer announcements)
+# ─────────────────────────────────────────────────────────────────────────────
+auto-broadcast:
+  enabled: false
+  # Interval between broadcasts (minutes)
+  interval-minutes: 60
+  # How many top players to list
+  top-count: 3
+  # Lines of the broadcast message (supports colour codes & placeholders)
+  message:
+    - "&8&m----&r &6&lTop Referrers &8&m----"
+    - "&e#1: &6%top_1_name% &7— &a%top_1_count% referrals"
+    - "&e#2: &6%top_2_name% &7— &a%top_2_count% referrals"
+    - "&e#3: &6%top_3_name% &7— &a%top_3_count% referrals"
+    - "&8&m--------------------"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GUI — PLAYER PANEL
+# ─────────────────────────────────────────────────────────────────────────────
 gui:
   player:
+    enabled: true
+    # Inventory title (supports colour codes)
     title: "&6&lYour Referrals"
+    # Number of rows (1–6)
     rows: 6
+
+    # Filler item for empty slots
+    filler:
+      enabled: true
+      material: BLACK_STAINED_GLASS_PANE
+      name: " "
+
+    # Sound played when the GUI is opened
+    open-sound:
+      enabled: true
+      sound: BLOCK_CHEST_OPEN
+      volume: 0.5
+      pitch: 1.2
+
+    # Sound played when the GUI is closed
+    close-sound:
+      enabled: false
+      sound: BLOCK_CHEST_CLOSE
+      volume: 0.5
+      pitch: 1.0
+
+    items:
+      # Player skull / overview
+      overview:
+        slot: 13
+        material: PLAYER_HEAD
+        name: "&6&l%player%"
+        lore:
+          - "&7Profile: &e%referral_profile%"
+          - ""
+          - "&7Total Attempts: &f%referral_total%"
+          - "&aSuccessful: &f%referral_count%"
+          - "&cBlocked:    &f%referral_blocked%"
+
+      # Successful referrals counter
+      successful:
+        slot: 20
+        material: LIME_DYE
+        name: "&a&lSuccessful Referrals"
+        lore:
+          - ""
+          - "&f%referral_count% &7successful referrals"
+
+      # Total rewards counter
+      rewards:
+        slot: 22
+        material: SUNFLOWER
+        name: "&6&lTotal Rewards"
+        lore:
+          - ""
+          - "&f$%referral_total_rewards% &7earned in total"
+
+      # Blocked referrals counter
+      blocked:
+        slot: 24
+        material: RED_DYE
+        name: "&c&lBlocked Referrals"
+        lore:
+          - ""
+          - "&f%referral_blocked% &7blocked attempts"
+
+      # Milestone progress bar
+      milestone:
+        slot: 31
+        material: EXPERIENCE_BOTTLE
+        name: "&b&lMilestone Progress"
+        # Lore is generated dynamically — this provides the static header
+        lore-header:
+          - ""
+        # Characters used for the progress bar
+        bar-filled-char: "█"
+        bar-empty-char: "█"
+        bar-filled-colour: "&a"
+        bar-empty-colour: "&8"
+        bar-width: 20
+
+      # Back / close navigation button (bottom-center)
+      close-button:
+        enabled: true
+        slot: 49
+        material: BARRIER
+        name: "&cClose"
+        lore:
+          - "&7Click to close"
+
+    # Slots used for the recent-history section (must be contiguous)
+    history:
+      start-slot: 37
+      size: 8
+      success-material: LIME_CONCRETE
+      blocked-material: RED_CONCRETE
+      # Date format for history entries
+      date-format: "yyyy-MM-dd HH:mm"
+
+  # ── ADMIN PANEL ─────────────────────────────────────────────────────────────
   admin:
+    enabled: true
     title: "&c&lAdmin Panel"
     rows: 6
 
-# Prefix for all plugin messages (use '' to disable)
+    filler:
+      enabled: true
+      material: GRAY_STAINED_GLASS_PANE
+      name: " "
+
+    open-sound:
+      enabled: true
+      sound: BLOCK_CHEST_OPEN
+      volume: 0.5
+      pitch: 0.8
+
+    items:
+      # Leaderboard header item
+      leaderboard-header:
+        slot: 0
+        material: NETHER_STAR
+        name: "&b&l✦ Top Referrers"
+        lore:
+          - "&7The all-time leaderboard"
+      # How many leaderboard entries to show (fills slots 1 through N)
+      leaderboard-size: 8
+
+      # Suspicious activity header
+      suspicious-header:
+        slot: 18
+        material: REDSTONE
+        name: "&c&l⚠ Suspicious Activity"
+        lore:
+          - "&7Recent blocked / flagged referrals"
+      # How many suspicious entries to show (fills slots 19 through N)
+      suspicious-size: 8
+
+      # Close / navigation button
+      close-button:
+        slot: 49
+        material: BARRIER
+        name: "&cClose"
+        lore:
+          - "&7Click to close"
+
+    history:
+      date-format: "yyyy-MM-dd HH:mm"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FORMATTING
+# ─────────────────────────────────────────────────────────────────────────────
+formatting:
+  # Java DateTimeFormatter pattern used for all displayed dates/times
+  date-format: "yyyy-MM-dd HH:mm"
+  # Java ZoneId string for date/time display ("UTC", "Europe/Paris", etc.)
+  timezone: "UTC"
+  # Prefix string printed before money amounts
+  currency-prefix: "$"
+  # Suffix string printed after money amounts (leave empty for none)
+  currency-suffix: ""
+  # Decimal places shown for money
+  money-decimals: 2
+  # Java DecimalFormat pattern used for money
+  number-format: "#,##0.##"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MESSAGES PREFIX
+# ─────────────────────────────────────────────────────────────────────────────
+# Prepended to every plugin chat message.  Set to '' to disable.
 message-prefix: "&8[&6Refer&8] &r"
