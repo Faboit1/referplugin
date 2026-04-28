@@ -63,7 +63,7 @@ stats:
 help:
   header:     "&8&m━━━━━━━━━━━━&r &6&lReferral Commands &8&m━━━━━━━━━━━━"
   use:        "&e/referral stats &8│ &7View your own stats"
-  stats-other:"&e/referral stats <player> &8│ &7View another player's stats &8(admin)"
+  stats-other: "&e/referral stats <player> &8│ &7View another player's stats &8(admin)"
   gui:        "&e/referral gui &8│ &7Open your referral panel"
   admin-gui:  "&e/referral admin &8│ &7Open the admin panel &8(admin)"
   info:       "&e/referral info [player] &8│ &7Show profile info &8(admin)"
