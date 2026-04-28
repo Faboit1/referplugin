@@ -52,7 +52,7 @@ stats:
   player:    "&7Player: &e%player%"
   profile:   "&7Active Profile: &e%referral_profile%"
   total:     "&7Total Attempts: &f%referral_total%"
-  successful:"&aSuccessful:     &f%referral_count%"
+  successful: "&aSuccessful:     &f%referral_count%"
   blocked:   "&cBlocked:        &f%referral_blocked%"
   rewards:   "&6Rewards Earned: &f$%referral_total_rewards%"
   footer:    "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
