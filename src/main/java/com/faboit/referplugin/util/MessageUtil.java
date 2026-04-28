@@ -12,7 +12,7 @@ public final class MessageUtil {
 
     private MessageUtil() {}
 
-    /** Send a colourised message to a player, no-op if player is null. */
+    /** Send a colorized message to a player, no-op if player is null. */
     public static void send(Player player, String message) {
         if (player == null || message == null) return;
         player.sendMessage(message);

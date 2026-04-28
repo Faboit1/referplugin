@@ -66,7 +66,7 @@ public class ConfigManager {
 
     /**
      * Returns a formatted message string with the configured prefix prepended.
-     * Supports {@code &} colour codes.
+     * Supports {@code &} color codes.
      */
     public String getMessage(String path) {
         String prefix = config.getString("message-prefix", "&8[&6Refer&8] &r");
