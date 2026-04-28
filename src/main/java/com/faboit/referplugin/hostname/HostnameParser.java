@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Extracts a referrer username from the virtual hostname the player connected with.
@@ -27,6 +28,8 @@ public class HostnameParser {
     private final int               minLength;
     private final int               maxLength;
     private final Pattern           subdomainPattern; // may be null if regex is empty
+    /** Compiled glob patterns for subdomains that should be silently ignored. */
+    private final List<Pattern>     blockedSubdomainPatterns = new ArrayList<>();
 
     public HostnameParser(FileConfiguration config) {
         this.baseDomain = config.getString("hostname.base-domain", "").toLowerCase().trim();
@@ -53,6 +56,44 @@ public class HostnameParser {
                 if (!value.isBlank()) manualOverrides.put(key.toLowerCase(), value);
             }
         }
+
+        // Compile blocked-subdomain glob patterns (*, ? wildcards)
+        for (String glob : config.getStringList("hostname.blocked-subdomains")) {
+            String g = glob.toLowerCase().trim();
+            if (!g.isBlank()) {
+                blockedSubdomainPatterns.add(globToPattern(g));
+            }
+        }
+    }
+
+    /**
+     * Converts a simple glob pattern (using {@code *} and {@code ?} wildcards)
+     * into a compiled {@link Pattern} for case-insensitive matching.
+     */
+    private static Pattern globToPattern(String glob) {
+        StringBuilder sb = new StringBuilder("^");
+        for (int i = 0; i < glob.length(); i++) {
+            char c = glob.charAt(i);
+            switch (c) {
+                case '*' -> sb.append(".*");
+                case '?' -> sb.append('.');
+                case '.', '(', ')', '[', ']', '{', '}', '^', '$', '+', '|', '\\' ->
+                    sb.append('\\').append(c);
+                default  -> sb.append(c);
+            }
+        }
+        sb.append("$");
+        return Pattern.compile(sb.toString(), Pattern.CASE_INSENSITIVE);
+    }
+
+    /**
+     * Returns {@code true} if the given subdomain matches any configured blocked pattern.
+     */
+    private boolean isBlockedSubdomain(String subdomain) {
+        for (Pattern p : blockedSubdomainPatterns) {
+            if (p.matcher(subdomain).matches()) return true;
+        }
+        return false;
     }
 
     /**
@@ -82,6 +123,9 @@ public class HostnameParser {
             if (host.endsWith(suffix)) {
                 String subdomain = host.substring(0, host.length() - suffix.length());
                 if (subdomain.isBlank() || subdomain.contains(".")) continue; // nested subdomain – skip
+
+                // Silently ignore subdomains that match a blocked pattern
+                if (isBlockedSubdomain(subdomain)) return null;
 
                 // Check manual override for just the subdomain part
                 if (manualOverrides.containsKey(subdomain)) return manualOverrides.get(subdomain);
