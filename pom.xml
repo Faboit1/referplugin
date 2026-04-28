@@ -137,11 +137,7 @@
                                     <pattern>redis.clients</pattern>
                                     <shadedPattern>com.faboit.referplugin.libs.redis</shadedPattern>
                                 </relocation>
-                                <relocation>
-                                    <pattern>org.sqlite</pattern>
-                                    <shadedPattern>com.faboit.referplugin.libs.sqlite</shadedPattern>
-                                </relocation>
-                                <relocation>
+<relocation>
                                     <pattern>com.mysql</pattern>
                                     <shadedPattern>com.faboit.referplugin.libs.mysql</shadedPattern>
                                 </relocation>
