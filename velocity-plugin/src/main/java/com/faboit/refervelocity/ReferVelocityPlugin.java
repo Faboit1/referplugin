@@ -73,7 +73,7 @@ public class ReferVelocityPlugin {
     public void onPostLogin(PostLoginEvent event) {
         Player player = event.getPlayer();
         player.getVirtualHost().ifPresentOrElse(
-                host -> virtualHosts.put(player.getUniqueId(), host.getHostName()),
+                host -> virtualHosts.put(player.getUniqueId(), host.getHostString()),
                 ()   -> virtualHosts.put(player.getUniqueId(), "")
         );
     }

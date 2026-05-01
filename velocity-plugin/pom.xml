@@ -13,7 +13,7 @@
     <description>Velocity companion plugin for ReferPlugin – forwards player IP and virtual host to the Paper backend.</description>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -29,7 +29,7 @@
         <dependency>
             <groupId>com.velocitypowered</groupId>
             <artifactId>velocity-api</artifactId>
-            <version>3.3.0-SNAPSHOT</version>
+            <version>3.4.0-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
@@ -49,7 +49,7 @@
                         <path>
                             <groupId>com.velocitypowered</groupId>
                             <artifactId>velocity-api</artifactId>
-                            <version>3.3.0-SNAPSHOT</version>
+                            <version>3.4.0-SNAPSHOT</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>

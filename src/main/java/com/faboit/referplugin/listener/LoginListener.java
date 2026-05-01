@@ -11,6 +11,8 @@ import com.faboit.referplugin.reward.RewardManager;
 import com.faboit.referplugin.util.MessageUtil;
 import com.faboit.referplugin.util.NotificationUtil;
 import com.faboit.referplugin.velocity.VelocityData;
+import io.papermc.paper.connection.PlayerLoginConnection;
+import io.papermc.paper.event.connection.PlayerConnectionValidateLoginEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -18,10 +20,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -35,9 +36,9 @@ import java.util.logging.Logger;
  *
  * <p>Flow:
  * <ol>
- *   <li>{@link PlayerLoginEvent} (MONITOR) — captures the hostname the player used
- *       and the IP reported by Paper (may be the Velocity proxy IP). Both are stored
- *       in {@link #pendingLogins} keyed by UUID.</li>
+ *   <li>{@link PlayerConnectionValidateLoginEvent} (MONITOR) — captures the hostname the
+ *       player used and the IP reported by Paper (may be the Velocity proxy IP). Both are
+ *       stored in {@link #pendingLogins} keyed by UUID.</li>
  *   <li>If the Velocity companion plugin is installed, it sends a plugin message on
  *       channel {@code referplugin:connect} shortly after the backend connection
  *       succeeds. The {@link com.faboit.referplugin.velocity.VelocityBridge} caches
@@ -56,7 +57,7 @@ public class LoginListener implements Listener {
     private final Logger      log;
 
     /**
-     * Stores the hostname (and fallback IP) captured at {@link PlayerLoginEvent} time
+     * Stores the hostname (and fallback IP) captured at {@link PlayerConnectionValidateLoginEvent} time
      * for retrieval during {@link PlayerJoinEvent}.
      */
     private final ConcurrentHashMap<UUID, PendingLogin> pendingLogins = new ConcurrentHashMap<>();
@@ -71,21 +72,29 @@ public class LoginListener implements Listener {
     // ── Step 1: capture data at login time ────────────────────────────────────
 
     @EventHandler(priority = EventPriority.MONITOR)
-    public void onLogin(PlayerLoginEvent event) {
-        if (event.getResult() != PlayerLoginEvent.Result.ALLOWED) return;
+    public void onValidateLogin(PlayerConnectionValidateLoginEvent event) {
+        // Only process login-phase connections, not re-configuration handshakes.
+        if (!(event.getConnection() instanceof PlayerLoginConnection loginConn)) return;
 
-        Player joiner   = event.getPlayer();
-        String rawHost  = event.getHostname();
-        var    parsed   = plugin.getHostnameParser().parseResult(rawHost);
+        com.destroystokyo.paper.profile.PlayerProfile profile = loginConn.getUnsafeProfile();
+        if (profile == null || profile.getId() == null) return;
+        UUID uuid = profile.getId();
 
-        InetAddress addr       = event.getAddress();
-        String      fallbackIp = addr != null
-                ? AbuseDetector.sanitiseIp(addr.getHostAddress()) : null;
+        // Virtual host as seen by this Paper server (may be the backend address under
+        // Velocity modern forwarding; the Velocity plugin message provides the real subdomain).
+        InetSocketAddress virtualHostAddr = event.getConnection().getVirtualHost();
+        String rawHost = virtualHostAddr != null ? virtualHostAddr.getHostString() : "";
+        var parsed = plugin.getHostnameParser().parseResult(rawHost);
+
+        // Real client address: Paper 26.1+ extracts this from the Velocity forwarding handshake.
+        InetSocketAddress clientAddr = event.getConnection().getClientAddress();
+        String fallbackIp = clientAddr != null && clientAddr.getAddress() != null
+                ? AbuseDetector.sanitiseIp(clientAddr.getAddress().getHostAddress()) : null;
 
         // Always store an entry so the deferred task in onJoin runs even when Velocity
         // modern-forwarding replaces the original virtual host with the backend address.
         // The task will pick up the real hostname from the Velocity plugin message instead.
-        pendingLogins.put(joiner.getUniqueId(),
+        pendingLogins.put(uuid,
                 new PendingLogin(parsed.referrerName(), fallbackIp, rawHost, parsed.blocked()));
     }
 
