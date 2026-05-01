@@ -2,6 +2,7 @@ package com.faboit.referplugin.listener;
 
 import com.faboit.referplugin.ReferPlugin;
 import com.faboit.referplugin.antiabuse.AbuseDetector;
+import com.faboit.referplugin.hostname.HostnameParser;
 import com.faboit.referplugin.antiabuse.AbuseResult;
 import com.faboit.referplugin.database.Database;
 import com.faboit.referplugin.model.PendingReward;
@@ -81,15 +82,11 @@ public class LoginListener implements Listener {
         String      fallbackIp = addr != null
                 ? AbuseDetector.sanitiseIp(addr.getHostAddress()) : null;
 
-        if (parsed.referrerName() != null && !parsed.referrerName().isBlank()) {
-            // Normal referral subdomain detected
-            pendingLogins.put(joiner.getUniqueId(),
-                    new PendingLogin(parsed.referrerName(), fallbackIp, rawHost, false));
-        } else if (parsed.blocked()) {
-            // Blocked subdomain — store for cleanup but not for referral processing
-            pendingLogins.put(joiner.getUniqueId(),
-                    new PendingLogin(null, fallbackIp, rawHost, true));
-        }
+        // Always store an entry so the deferred task in onJoin runs even when Velocity
+        // modern-forwarding replaces the original virtual host with the backend address.
+        // The task will pick up the real hostname from the Velocity plugin message instead.
+        pendingLogins.put(joiner.getUniqueId(),
+                new PendingLogin(parsed.referrerName(), fallbackIp, rawHost, parsed.blocked()));
     }
 
     // ── Step 2: clean up on disconnect ───────────────────────────────────────
@@ -128,18 +125,27 @@ public class LoginListener implements Listener {
             String joinerIp = (vd != null && vd.getRealIp() != null && !vd.getRealIp().isBlank())
                     ? vd.getRealIp() : pending.fallbackIp();
 
-            // Blocked-subdomain path: clean up any previous referral records sharing this IP
-            if (pending.blockedSubdomain()) {
+            boolean hasVdHostname = vd != null && vd.getHostname() != null && !vd.getHostname().isBlank();
+
+            // When Velocity data is present, parse the virtual host once and reuse the result.
+            // With Velocity modern forwarding the Paper-side parse is always a no-match, so we must
+            // also check the Velocity hostname for blocked subdomains.
+            HostnameParser.ParseResult vdParsed = hasVdHostname
+                    ? plugin.getHostnameParser().parseResult(vd.getHostname()) : null;
+
+            // Blocked-subdomain path: check both Paper's event-time parse and the Velocity virtual host.
+            boolean blocked = pending.blockedSubdomain()
+                    || (vdParsed != null && vdParsed.blocked());
+            if (blocked) {
                 cleanupBlockedJoinerRecords(joinerIp);
                 return;
             }
 
-            String referrerName = (vd != null && vd.getHostname() != null && !vd.getHostname().isBlank())
-                    ? plugin.getHostnameParser().parse(vd.getHostname())
-                    : pending.hostname();
+            // Resolve the referrer name: Velocity virtual host takes priority (it is the original
+            // hostname the player typed, which Paper never sees under modern Velocity forwarding).
+            String referrerName = (vdParsed != null) ? vdParsed.referrerName() : pending.hostname();
             // Use Velocity's virtual host for logging; fall back to the raw host from PlayerLoginEvent
-            String rawHost = (vd != null && vd.getHostname() != null && !vd.getHostname().isBlank())
-                    ? vd.getHostname() : pending.rawHost();
+            String rawHost = hasVdHostname ? vd.getHostname() : pending.rawHost();
 
             if (referrerName == null || referrerName.isBlank()) return;
 
