@@ -1,7 +1,7 @@
 name: ReferPlugin
 version: '${project.version}'
 main: com.faboit.referplugin.ReferPlugin
-api-version: '1.20'
+api-version: '1.21'
 description: Production-ready Minecraft referral plugin
 author: Faboit
 website: https://github.com/Faboit1/referplugin
