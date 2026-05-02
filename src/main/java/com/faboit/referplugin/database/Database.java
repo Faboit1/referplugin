@@ -46,6 +46,12 @@ public interface Database {
 
     List<ReferralRecord> getSuspiciousRecords(int limit);
 
+    /**
+     * Returns the most recent successful referrals across all referrers,
+     * with {@code referrerName} and {@code joinerName} populated via JOIN.
+     */
+    List<ReferralRecord> getLatestSuccessfulRecords(int limit);
+
     boolean hasBeenReferred(UUID joinerUuid);
 
     int countSuccessfulReferralsToday(UUID referrerUuid);

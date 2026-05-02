@@ -123,3 +123,8 @@ gui:
     suspicious-when: "&7When: &f%date%"
     no-suspicious: "&7No suspicious activity recorded."
     no-leaderboard: "&7No referral data yet."
+    latest-entry: "&a%referrer% &7→ &e%joiner%"
+    latest-joiner: "&7Joiner: &e%joiner%"
+    latest-when: "&7When: &f%date%"
+    latest-host: "&7Host: &f%referral_host%"
+    no-latest: "&7No successful referrals yet."

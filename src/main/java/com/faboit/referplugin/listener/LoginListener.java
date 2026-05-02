@@ -114,10 +114,15 @@ public class LoginListener implements Listener {
         Player player = event.getPlayer();
         UUID   uuid   = player.getUniqueId();
 
-        // Always deliver any pending rewards (e.g. referrer was offline when referral happened)
+        // Ensure a player record exists for everyone who joins.
+        // This makes every player reachable as a referrer even if they are
+        // offline when someone uses their link.
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             Player p = Bukkit.getPlayer(uuid);
-            if (p != null) deliverPendingRewards(p);
+            if (p != null) {
+                plugin.getDb().ensurePlayer(uuid, p.getName());
+                deliverPendingRewards(p);
+            }
         }, PROCESS_DELAY_TICKS);
 
         if (!pendingLogins.containsKey(uuid)) return; // No referral subdomain captured
@@ -188,6 +193,9 @@ public class LoginListener implements Listener {
             if (referrerUuid != null) {
                 database.incrementBlockedReferrals(referrerUuid);
             }
+            plugin.getReferralLogger().logBlocked(
+                    referrerName, joiner.getName(), joinerIp,
+                    result.getStatus().name(), System.currentTimeMillis());
             sendBlockedMessage(joiner, result);
             return;
         }
@@ -252,6 +260,9 @@ public class LoginListener implements Listener {
                 result.getStatus(),
                 referrerOnline != null,
                 true);
+
+        plugin.getReferralLogger().logSuccess(
+                referrerName, joiner.getName(), joinerIp, rawHost, System.currentTimeMillis());
 
         log.info(String.format("Referral processed: %s → %s (status=%s)",
                 referrerName, joiner.getName(), result.getStatus()));

@@ -88,8 +88,8 @@ public class AbuseDetector {
         }
 
         // --- 4. Cooldown check ---
-        if (referrerUuid != null && !joiner.hasPermission("referplugin.bypass.cooldown")) {
-            int cooldownHours = resolveCooldown(joiner);
+        if (referrerUuid != null && !referrerOnline.hasPermission("referplugin.bypass.cooldown")) {
+            int cooldownHours = resolveCooldown(referrerOnline);
             if (cooldownHours > 0) {
                 long lastReferral = getLastReferralTimestamp(referrerUuid);
                 long cooldownMs = cooldownHours * 3_600_000L;
@@ -101,8 +101,8 @@ public class AbuseDetector {
         }
 
         // --- 5. Daily cap ---
-        if (referrerUuid != null && !joiner.hasPermission("referplugin.bypass.cap")) {
-            int dailyCap = resolveDailyCap(joiner);
+        if (referrerUuid != null && !referrerOnline.hasPermission("referplugin.bypass.cap")) {
+            int dailyCap = resolveDailyCap(referrerOnline);
             if (dailyCap > 0) {
                 int todayCount = database.countSuccessfulReferralsToday(referrerUuid);
                 if (todayCount >= dailyCap) {
@@ -112,7 +112,7 @@ public class AbuseDetector {
             }
 
             // --- 6. Weekly cap ---
-            int weeklyCap = resolveWeeklyCap(joiner);
+            int weeklyCap = resolveWeeklyCap(referrerOnline);
             if (weeklyCap > 0) {
                 int weekCount = database.countSuccessfulReferralsThisWeek(referrerUuid);
                 if (weekCount >= weeklyCap) {

@@ -108,6 +108,33 @@ public class AdminGUI implements Listener {
                     List.of()));
         }
 
+        // Latest referrals header
+        placeItemFromSection(inv, items, "latest-header", 27, "EMERALD");
+
+        // Latest referral entries
+        int latestSize = items != null ? items.getInt("latest-size", 8) : 8;
+        List<ReferralRecord> latest = database.getLatestSuccessfulRecords(latestSize);
+        for (int i = 0; i < latest.size(); i++) {
+            ReferralRecord r = latest.get(i);
+            String when = fmt.format(Instant.ofEpochMilli(r.getTimestamp()));
+            String referrerDisplay = r.getReferrerName() != null ? r.getReferrerName()
+                    : r.getReferrerUuid().toString().substring(0, 8) + "…";
+            String joinerDisplay   = r.getJoinerName() != null ? r.getJoinerName()
+                    : r.getJoinerUuid().toString().substring(0, 8) + "…";
+            String itemName = colorize(configManager.getMessages()
+                    .getString("gui.admin.latest-entry", "&a%referrer% &7→ &e%joiner%")
+                    .replace("%referrer%", referrerDisplay)
+                    .replace("%joiner%",   joinerDisplay));
+            List<String> lore = buildLatestLore(r, joinerDisplay, when);
+            inv.setItem(28 + i, makePlayerHead(referrerDisplay, itemName, lore));
+        }
+        if (latest.isEmpty()) {
+            inv.setItem(28, makeBasicItem(Material.GRAY_DYE,
+                    colorize(configManager.getMessages()
+                            .getString("gui.admin.no-latest", "&7No successful referrals yet.")),
+                    List.of()));
+        }
+
         // Close button
         if (items != null && items.isConfigurationSection("close-button")) {
             int cbSlot = items.getInt("close-button.slot", 49);
@@ -159,6 +186,20 @@ public class AdminGUI implements Listener {
                 .getString("gui.admin.leaderboard-profile",
                         "&7Profile: &e%referral_profile%")
                 .replace("%referral_profile%", s.getRewardProfile())));
+        return lore;
+    }
+
+    private List<String> buildLatestLore(ReferralRecord r, String joinerDisplay, String when) {
+        List<String> lore = new ArrayList<>();
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.latest-joiner", "&7Joiner: &e%joiner%")
+                .replace("%joiner%", joinerDisplay)));
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.latest-when", "&7When: &f%date%")
+                .replace("%date%", when)));
+        lore.add(colorize(configManager.getMessages()
+                .getString("gui.admin.latest-host", "&7Host: &f%referral_host%")
+                .replace("%referral_host%", safe(r.getReferralHost()))));
         return lore;
     }
 

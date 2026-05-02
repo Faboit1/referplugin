@@ -27,10 +27,22 @@ public class ReferralRecord {
     private final Status status;
     private final boolean referrerRewardGiven;
     private final boolean joinerRewardGiven;
+    /** May be null when names are not joined from the players table. */
+    private final String referrerName;
+    /** May be null when names are not joined from the players table. */
+    private final String joinerName;
 
     public ReferralRecord(long id, UUID referrerUuid, UUID joinerUuid, String joinerIp,
                           String referralHost, long timestamp, Status status,
                           boolean referrerRewardGiven, boolean joinerRewardGiven) {
+        this(id, referrerUuid, joinerUuid, joinerIp, referralHost, timestamp, status,
+                referrerRewardGiven, joinerRewardGiven, null, null);
+    }
+
+    public ReferralRecord(long id, UUID referrerUuid, UUID joinerUuid, String joinerIp,
+                          String referralHost, long timestamp, Status status,
+                          boolean referrerRewardGiven, boolean joinerRewardGiven,
+                          String referrerName, String joinerName) {
         this.id = id;
         this.referrerUuid = referrerUuid;
         this.joinerUuid = joinerUuid;
@@ -40,6 +52,8 @@ public class ReferralRecord {
         this.status = status;
         this.referrerRewardGiven = referrerRewardGiven;
         this.joinerRewardGiven = joinerRewardGiven;
+        this.referrerName = referrerName;
+        this.joinerName = joinerName;
     }
 
     public long getId() { return id; }
@@ -51,4 +65,6 @@ public class ReferralRecord {
     public Status getStatus() { return status; }
     public boolean isReferrerRewardGiven() { return referrerRewardGiven; }
     public boolean isJoinerRewardGiven() { return joinerRewardGiven; }
+    public String getReferrerName() { return referrerName; }
+    public String getJoinerName() { return joinerName; }
 }

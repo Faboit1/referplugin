@@ -317,6 +317,31 @@ public abstract class AbstractDatabase implements Database {
     }
 
     @Override
+    public List<ReferralRecord> getLatestSuccessfulRecords(int limit) {
+        List<ReferralRecord> list = new ArrayList<>();
+        String sql = """
+            SELECT rr.*,
+                   rp_ref.username AS referrer_name,
+                   rp_joi.username AS joiner_name
+            FROM referral_records rr
+            LEFT JOIN referral_players rp_ref ON rr.referrer_uuid = rp_ref.uuid
+            LEFT JOIN referral_players rp_joi ON rr.joiner_uuid  = rp_joi.uuid
+            WHERE rr.status = 'SUCCESS'
+            ORDER BY rr.timestamp DESC LIMIT ?
+            """;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(mapRecordWithNames(rs));
+            }
+        } catch (SQLException e) {
+            log.severe("Error fetching latest successful records: " + e.getMessage());
+        }
+        return list;
+    }
+
+    @Override
     public boolean hasBeenReferred(UUID joinerUuid) {
         // Both SUCCESS and RELAXED_IP count as "already referred" – prevent being referred twice
         String sql = "SELECT 1 FROM referral_records WHERE joiner_uuid = ? AND status IN ('SUCCESS', 'RELAXED_IP') LIMIT 1";
@@ -552,6 +577,22 @@ public abstract class AbstractDatabase implements Database {
                 ReferralRecord.Status.valueOf(rs.getString("status")),
                 rs.getBoolean("referrer_reward_given"),
                 rs.getBoolean("joiner_reward_given")
+        );
+    }
+
+    private ReferralRecord mapRecordWithNames(ResultSet rs) throws SQLException {
+        return new ReferralRecord(
+                rs.getLong("id"),
+                UUID.fromString(rs.getString("referrer_uuid")),
+                UUID.fromString(rs.getString("joiner_uuid")),
+                rs.getString("joiner_ip"),
+                rs.getString("referral_host"),
+                rs.getLong("timestamp"),
+                ReferralRecord.Status.valueOf(rs.getString("status")),
+                rs.getBoolean("referrer_reward_given"),
+                rs.getBoolean("joiner_reward_given"),
+                rs.getString("referrer_name"),
+                rs.getString("joiner_name")
         );
     }
 

@@ -651,6 +651,16 @@ gui:
       # How many suspicious entries to show (fills slots 19 through N)
       suspicious-size: 8
 
+      # Latest referrals header
+      latest-header:
+        slot: 27
+        material: EMERALD
+        name: "&a&l⟳ Latest Referrals"
+        lore:
+          - "&7The most recent successful referrals"
+      # How many latest referral entries to show (fills slots 28 through N)
+      latest-size: 8
+
       # Close / navigation button
       close-button:
         slot: 49

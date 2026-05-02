@@ -40,12 +40,16 @@ public class ReferPlugin extends JavaPlugin {
     private AdminGUI        adminGUI;
     private Economy         economy;
     private VelocityBridge  velocityBridge;
+    private ReferralLogger  referralLogger;
 
     @Override
     public void onEnable() {
         // ── 1. Config ────────────────────────────────────────────────────────
         configManager = new ConfigManager(this);
         configManager.load();
+
+        // ── 1b. Referral logger ──────────────────────────────────────────────
+        referralLogger = new ReferralLogger(getDataFolder(), getLogger());
 
         // ── 2. Database ──────────────────────────────────────────────────────
         databaseManager = new DatabaseManager(this);
@@ -132,13 +136,14 @@ public class ReferPlugin extends JavaPlugin {
 
     // ── Accessors ────────────────────────────────────────────────────────────
 
-    public ConfigManager   getConfigManager()  { return configManager; }
-    public Database        getDb()             { return databaseManager != null ? databaseManager.getDatabase() : null; }
-    public HostnameParser  getHostnameParser() { return hostnameParser; }
-    public AbuseDetector   getAbuseDetector()  { return abuseDetector; }
-    public RewardManager   getRewardManager()  { return rewardManager; }
-    public PlayerGUI       getPlayerGUI()      { return playerGUI; }
-    public AdminGUI        getAdminGUI()       { return adminGUI; }
-    public Economy         getEconomy()        { return economy; }
-    public VelocityBridge  getVelocityBridge() { return velocityBridge; }
+    public ConfigManager   getConfigManager()   { return configManager; }
+    public Database        getDb()              { return databaseManager != null ? databaseManager.getDatabase() : null; }
+    public HostnameParser  getHostnameParser()  { return hostnameParser; }
+    public AbuseDetector   getAbuseDetector()   { return abuseDetector; }
+    public RewardManager   getRewardManager()   { return rewardManager; }
+    public PlayerGUI       getPlayerGUI()       { return playerGUI; }
+    public AdminGUI        getAdminGUI()        { return adminGUI; }
+    public Economy         getEconomy()         { return economy; }
+    public VelocityBridge  getVelocityBridge()  { return velocityBridge; }
+    public ReferralLogger  getReferralLogger()  { return referralLogger; }
 }
