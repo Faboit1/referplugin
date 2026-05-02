@@ -84,13 +84,14 @@ Every player who joins the server is automatically registered as a potential ref
 
 ## Admin GUI
 
-Open with `/referral admin`. The panel is divided into three rows:
+Open with `/referral admin`. The panel is divided into three sections:
 
-| Row | Content |
+| Slots | Content |
 |---|---|
-| Row 1 (slots 0–8) | **Top Referrers** leaderboard |
-| Row 3 (slots 18–26) | **Suspicious activity** (blocked/flagged referrals) |
-| Row 4 (slots 27–35) | **Latest Referrals** (most recent successful referrals) |
+| 0–8 | **Top Referrers** leaderboard |
+| 18–26 | **Suspicious activity** (blocked/flagged referrals) |
+| 27–35 | **Latest Referrals** (most recent successful referrals) |
+| 49 | Close button |
 
 ---
 
